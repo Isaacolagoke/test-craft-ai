@@ -1,12 +1,9 @@
 import React from 'react';
+import Register from './pages/Register';
 import './App.css';
 
 function App() {
-  return (
-    <div>
-      <h1>TestCraft.ai</h1>
-    </div>
-  );
+  return <Register />;
 }
 
 export default App;
