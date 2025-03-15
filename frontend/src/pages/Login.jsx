@@ -4,10 +4,9 @@ import axios from 'axios'
 import logoText from '../assets/logo-text.svg'
 import googleIcon from '../assets/google.svg'
 
-export default function Register() {
+export default function Login() {
   const navigate = useNavigate()
   const [formData, setFormData] = useState({
-    name: '',
     email: '',
     password: ''
   })
@@ -20,22 +19,16 @@ export default function Register() {
     setIsLoading(true)
 
     try {
-      const response = await axios.post('http://localhost:3001/api/auth/register', formData)
+      const response = await axios.post('http://localhost:3001/api/auth/login', formData)
       
-      // After successful registration, log the user in
-      const loginResponse = await axios.post('http://localhost:3001/api/auth/login', {
-        email: formData.email,
-        password: formData.password
-      })
-
-      // Store the token
-      localStorage.setItem('token', loginResponse.data.token)
-      localStorage.setItem('user', JSON.stringify(loginResponse.data.user))
+      // Store the token and user data
+      localStorage.setItem('token', response.data.token)
+      localStorage.setItem('user', JSON.stringify(response.data.user))
       
       // Navigate to dashboard
       navigate('/dashboard')
     } catch (error) {
-      setError(error.response?.data?.error || 'Registration failed')
+      setError(error.response?.data?.error || 'Login failed')
     } finally {
       setIsLoading(false)
     }
@@ -54,10 +47,10 @@ export default function Register() {
           <div className="flex flex-col items-center mt-16">
             {/* Heading */}
             <h1 className="text-[36px] font-semibold text-slate-900 mb-2">
-              Create your account
+              Welcome back
             </h1>
             <p className="text-slate-600 font-normal text-paragraph mb-8">
-              Harness the power of AI to create faster tests
+              Log in to your TestCraft account
             </p>
 
             {/* Error message */}
@@ -69,17 +62,6 @@ export default function Register() {
 
             {/* Form */}
             <form onSubmit={handleSubmit} className="w-full max-w-[400px] space-y-4">
-              <div>
-                <input
-                  type="text"
-                  placeholder="Name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full h-14 px-6 rounded-full border border-slate-400 focus:border-[#06545E] focus:outline-none focus:ring-2 focus:ring-[#06545E]/20 transition-colors text-body"
-                  required
-                  disabled={isLoading}
-                />
-              </div>
               <div>
                 <input
                   type="email"
@@ -107,15 +89,15 @@ export default function Register() {
                 className="w-full h-14 bg-[#06545E] text-[#FFFFFF] rounded-full font-medium transition-colors hover:bg-[#06545E]/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isLoading}
               >
-                {isLoading ? 'Signing up...' : 'Sign up'}
+                {isLoading ? 'Logging in...' : 'Log in'}
               </button>
             </form>
 
-            {/* Login link */}
+            {/* Sign up link */}
             <p className="mt-6 text-body text-secondary-gray">
-              Already have an account?{' '}
-              <Link to="/login" className="text-[#06545E] font-medium hover:opacity-90">
-                Log in
+              Don't have a TestCraft account?{' '}
+              <Link to="/register" className="text-[#06545E] font-medium hover:opacity-90">
+                Sign up
               </Link>
             </p>
 
@@ -139,4 +121,4 @@ export default function Register() {
       </div>
     </div>
   )
-}
+} 
