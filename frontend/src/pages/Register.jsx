@@ -1,15 +1,17 @@
 import React, { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import axios from 'axios'
+import { useAuth } from '../context/AuthContext'
 import logoText from '../assets/logo-text.svg'
 import googleIcon from '../assets/google.svg'
 
 export default function Register() {
   const navigate = useNavigate()
+  const { register } = useAuth()
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    password: ''
+    password: '',
+    confirmPassword: ''
   })
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -17,28 +19,43 @@ export default function Register() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
+
+    // Validate passwords match
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+
+    // Validate password strength
+    if (formData.password.length < 8) {
+      setError('Password must be at least 8 characters long')
+      return
+    }
+
     setIsLoading(true)
 
     try {
-      const response = await axios.post('http://localhost:3001/api/auth/register', formData)
-      
-      // After successful registration, log the user in
-      const loginResponse = await axios.post('http://localhost:3001/api/auth/login', {
+      const result = await register({
+        name: formData.name,
         email: formData.email,
         password: formData.password
       })
 
-      // Store the token
-      localStorage.setItem('token', loginResponse.data.token)
-      localStorage.setItem('user', JSON.stringify(loginResponse.data.user))
-      
-      // Navigate to dashboard
-      navigate('/dashboard')
+      if (result.success) {
+        navigate('/dashboard')
+      } else {
+        setError(result.error || 'Registration failed')
+      }
     } catch (error) {
-      setError(error.response?.data?.error || 'Registration failed')
+      setError(error.message || 'Registration failed')
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleGoogleRegister = () => {
+    // TODO: Implement Google OAuth
+    alert('Google registration will be implemented soon!')
   }
 
   return (
@@ -57,7 +74,7 @@ export default function Register() {
               Create your account
             </h1>
             <p className="text-slate-600 font-normal text-paragraph mb-8">
-              Harness the power of AI to create faster tests
+              Start creating quizzes with TestCraft
             </p>
 
             {/* Error message */}
@@ -72,7 +89,7 @@ export default function Register() {
               <div>
                 <input
                   type="text"
-                  placeholder="Name"
+                  placeholder="Full name"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="w-full h-14 px-6 rounded-full border border-slate-400 focus:border-[#06545E] focus:outline-none focus:ring-2 focus:ring-[#06545E]/20 transition-colors text-body"
@@ -102,20 +119,31 @@ export default function Register() {
                   disabled={isLoading}
                 />
               </div>
+              <div>
+                <input
+                  type="password"
+                  placeholder="Confirm password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
+                  className="w-full h-14 px-6 rounded-full border border-slate-400 focus:border-[#06545E] focus:outline-none focus:ring-2 focus:ring-[#06545E]/20 transition-colors text-body"
+                  required
+                  disabled={isLoading}
+                />
+              </div>
               <button
                 type="submit"
                 className="w-full h-14 bg-[#06545E] text-[#FFFFFF] rounded-full font-medium transition-colors hover:bg-[#06545E]/90 disabled:opacity-50 disabled:cursor-not-allowed"
                 disabled={isLoading}
               >
-                {isLoading ? 'Signing up...' : 'Sign up'}
+                {isLoading ? 'Creating account...' : 'Create account'}
               </button>
             </form>
 
-            {/* Login link */}
+            {/* Sign in link */}
             <p className="mt-6 text-body text-secondary-gray">
               Already have an account?{' '}
               <Link to="/login" className="text-[#06545E] font-medium hover:opacity-90">
-                Log in
+                Sign in
               </Link>
             </p>
 
@@ -127,7 +155,8 @@ export default function Register() {
             </div>
 
             {/* Google button */}
-            <button 
+            <button
+              onClick={handleGoogleRegister}
               className="w-full max-w-[400px] h-14 flex items-center justify-center gap-2 border border-slate-400 rounded-full hover:bg-slate-50 transition-colors text-body text-secondary"
               disabled={isLoading}
             >

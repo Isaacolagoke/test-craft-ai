@@ -1,15 +1,46 @@
 import React from 'react'
 import { Tab } from '@headlessui/react'
 import DashboardLayout from '../components/DashboardLayout'
+import QuizCard from '../components/QuizCard'
 import { 
   PlusIcon,
   MagnifyingGlassIcon,
   Squares2X2Icon,
   ListBulletIcon 
 } from '@heroicons/react/24/outline'
+import { useNavigate } from 'react-router-dom'
+import { useQuiz } from '../hooks/useQuiz'
+import { useAuth } from '../context/AuthContext'
 
 export default function Dashboard() {
+  const navigate = useNavigate()
+  const { user } = useAuth()
   const [layoutType, setLayoutType] = React.useState('grid') // 'grid' or 'list'
+  const [searchQuery, setSearchQuery] = React.useState('')
+
+  const {
+    quizzes,
+    loading,
+    error,
+    refreshQuizzes
+  } = useQuiz()
+
+  // Filter quizzes based on search query
+  const filteredQuizzes = React.useMemo(() => {
+    if (!quizzes) return [];
+    if (!searchQuery) return quizzes;
+    
+    const query = searchQuery.toLowerCase();
+    return quizzes.filter(quiz => 
+      quiz.title.toLowerCase().includes(query) ||
+      quiz.description?.toLowerCase().includes(query)
+    );
+  }, [quizzes, searchQuery]);
+
+  // Handle search input change
+  const handleSearch = (e) => {
+    setSearchQuery(e.target.value)
+  }
 
   return (
     <DashboardLayout>
@@ -23,7 +54,10 @@ export default function Dashboard() {
             Create and manage your quizzes with AI assistance
           </p>
         </div>
-        <button className="h-10 px-4 bg-[#06545E] text-white rounded-full font-medium transition-colors hover:bg-[#06545E]/90 shadow-sm flex items-center gap-2 text-sm">
+        <button 
+          onClick={() => navigate('/create-quiz')}
+          className="h-10 px-4 bg-[#06545E] text-white rounded-full font-medium transition-colors hover:bg-[#06545E]/90 shadow-sm flex items-center gap-2 text-sm"
+        >
           <PlusIcon className="w-4 h-4" />
           Create New Quiz
         </button>
@@ -66,6 +100,8 @@ export default function Dashboard() {
                 <div className="flex-1 relative">
                   <input
                     type="text"
+                    value={searchQuery}
+                    onChange={handleSearch}
                     placeholder="Search..."
                     className="w-full h-10 pl-10 pr-4 rounded-lg border border-slate-200 focus:border-[#06545E] focus:outline-none focus:ring-2 focus:ring-[#06545E]/20 transition-colors text-sm"
                   />
@@ -95,19 +131,75 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Empty state for no quizzes */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center shadow-sm">
-                <h2 className="text-xl font-semibold text-slate-900 mb-2">
-                  No quizzes yet
-                </h2>
-                <p className="text-slate-600 text-paragraph mb-6">
-                  Get started by creating your first quiz with AI assistance
-                </p>
-                <button className="h-10 px-4 bg-[#06545E] text-white rounded-full font-medium transition-colors hover:bg-[#06545E]/90 flex items-center gap-2 text-sm mx-auto">
-                  <PlusIcon className="w-4 h-4" />
-                  Create Your First Quiz
-                </button>
-              </div>
+              {/* Loading state */}
+              {loading && (
+                <div className="text-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#06545E] mx-auto"></div>
+                  <p className="mt-4 text-slate-600">Loading quizzes...</p>
+                </div>
+              )}
+
+              {/* Error state */}
+              {!loading && error && (
+                <div className="text-center py-12">
+                  <p className="text-red-500">{error}</p>
+                  <button
+                    onClick={refreshQuizzes}
+                    className="mt-4 px-4 py-2 text-[#06545E] hover:underline"
+                  >
+                    Try again
+                  </button>
+                </div>
+              )}
+
+              {/* Empty state */}
+              {!loading && !error && filteredQuizzes.length === 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center shadow-sm">
+                  <h2 className="text-xl font-semibold text-slate-900 mb-2">
+                    No quizzes yet
+                  </h2>
+                  <p className="text-slate-600 text-paragraph mb-6">
+                    Get started by creating your first quiz with AI assistance
+                  </p>
+                  <button 
+                    onClick={() => navigate('/create-quiz')}
+                    className="h-10 px-4 bg-[#06545E] text-white rounded-full font-medium transition-colors hover:bg-[#06545E]/90 flex items-center gap-2 text-sm mx-auto"
+                  >
+                    <PlusIcon className="w-4 h-4" />
+                    Create Your First Quiz
+                  </button>
+                </div>
+              )}
+
+              {/* Grid view */}
+              {!loading && !error && filteredQuizzes.length > 0 && layoutType === 'grid' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {filteredQuizzes.map((quiz) => (
+                    <QuizCard 
+                      key={quiz.id} 
+                      quiz={quiz} 
+                      onStatusChange={refreshQuizzes}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* List view */}
+              {!loading && !error && filteredQuizzes.length > 0 && layoutType === 'list' && (
+                <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-200 shadow-sm">
+                  {filteredQuizzes.map((quiz) => (
+                    <div
+                      key={quiz.id}
+                      className="p-4 hover:bg-slate-50 transition-colors"
+                    >
+                      <QuizCard 
+                        quiz={quiz} 
+                        onStatusChange={refreshQuizzes}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </Tab.Panel>
 
             <Tab.Panel>
@@ -116,6 +208,8 @@ export default function Dashboard() {
                 <div className="flex-1 relative">
                   <input
                     type="text"
+                    value={searchQuery}
+                    onChange={handleSearch}
                     placeholder="Search quizzes..."
                     className="w-full h-10 pl-10 pr-4 rounded-lg border border-slate-200 focus:border-[#06545E] focus:outline-none focus:ring-2 focus:ring-[#06545E]/20 transition-colors text-sm"
                   />
@@ -146,18 +240,53 @@ export default function Dashboard() {
               </div>
 
               {/* Empty state for no quizzes */}
-              <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center shadow-sm">
-                <h2 className="text-xl font-semibold text-slate-900 mb-2">
-                  No quizzes yet
-                </h2>
-                <p className="text-slate-600 text-paragraph mb-6">
-                  Get started by creating your first quiz with AI assistance
-                </p>
-                <button className="h-10 px-4 bg-[#06545E] text-white rounded-full font-medium transition-colors hover:bg-[#06545E]/90 flex items-center gap-2 text-sm mx-auto">
-                  <PlusIcon className="w-4 h-4" />
-                  Create Your First Quiz
-                </button>
-              </div>
+              {!loading && !error && filteredQuizzes.length === 0 && (
+                <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center shadow-sm">
+                  <h2 className="text-xl font-semibold text-slate-900 mb-2">
+                    No quizzes yet
+                  </h2>
+                  <p className="text-slate-600 text-paragraph mb-6">
+                    Get started by creating your first quiz with AI assistance
+                  </p>
+                  <button 
+                    onClick={() => navigate('/create-quiz')}
+                    className="h-10 px-4 bg-[#06545E] text-white rounded-full font-medium transition-colors hover:bg-[#06545E]/90 flex items-center gap-2 text-sm mx-auto"
+                  >
+                    <PlusIcon className="w-4 h-4" />
+                    Create Your First Quiz
+                  </button>
+                </div>
+              )}
+
+              {/* Grid view */}
+              {!loading && !error && filteredQuizzes.length > 0 && layoutType === 'grid' && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                  {filteredQuizzes.map((quiz) => (
+                    <QuizCard 
+                      key={quiz.id} 
+                      quiz={quiz} 
+                      onStatusChange={refreshQuizzes}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* List view */}
+              {!loading && !error && filteredQuizzes.length > 0 && layoutType === 'list' && (
+                <div className="bg-white rounded-2xl border border-slate-200 divide-y divide-slate-200 shadow-sm">
+                  {filteredQuizzes.map((quiz) => (
+                    <div
+                      key={quiz.id}
+                      className="p-4 hover:bg-slate-50 transition-colors"
+                    >
+                      <QuizCard 
+                        quiz={quiz} 
+                        onStatusChange={refreshQuizzes}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </Tab.Panel>
 
             <Tab.Panel>
@@ -188,4 +317,4 @@ export default function Dashboard() {
       </div>
     </DashboardLayout>
   )
-} 
+}

@@ -6,96 +6,137 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const path = require('path');
 const cors = require('cors');
-const notificationRoutes = require('./routes/notifications');
+const multer = require('multer');
+const fs = require('fs');
+const authRoutes = require('./routes/auth');
+const quizRoutes = require('./routes/quizzes');
+const statisticsRoutes = require('./routes/statistics');
+const db = require('./db');
 
 const app = express();
-const port = 3001;
-const JWT_SECRET = 'your-secret-key'; // In production, use environment variable
+const port = process.env.PORT || 3001;
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
 // Enable CORS for frontend
 app.use(cors({
-    origin: 'http://localhost:5175',
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true
 }));
 
-// Middleware
+// Global middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Initialize SQLite database
-const db = new sqlite3.Database('testcraft.db', (err) => {
-  if (err) {
-    console.error('Error connecting to the database:', err);
-  } else {
-    console.log('Connected to SQLite database');
-    initializeDatabase();
-  }
-});
+// Serve uploaded files
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Initialize database tables
-function initializeDatabase() {
-  db.serialize(() => {
-    // Users table
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )`);
-
-    // Quizzes table
-    db.run(`CREATE TABLE IF NOT EXISTS quizzes (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      title TEXT NOT NULL,
-      description TEXT,
-      creator_id INTEGER NOT NULL,
-      settings TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (creator_id) REFERENCES users (id)
-    )`);
-
-    // Questions table
-    db.run(`CREATE TABLE IF NOT EXISTS questions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      quiz_id INTEGER NOT NULL,
-      type TEXT NOT NULL,
-      content TEXT NOT NULL,
-      options TEXT,
-      correct_answer TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (quiz_id) REFERENCES quizzes (id)
-    )`);
-
-    // Responses table
-    db.run(`CREATE TABLE IF NOT EXISTS responses (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      quiz_id INTEGER NOT NULL,
-      user_id INTEGER NOT NULL,
-      answers TEXT NOT NULL,
-      score REAL,
-      completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (quiz_id) REFERENCES quizzes (id),
-      FOREIGN KEY (user_id) REFERENCES users (id)
-    )`);
-
-    // Feedback table
-    db.run(`CREATE TABLE IF NOT EXISTS feedback (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      quiz_id INTEGER NOT NULL,
-      user_id INTEGER NOT NULL,
-      content TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (quiz_id) REFERENCES quizzes (id),
-      FOREIGN KEY (user_id) REFERENCES users (id)
-    )`);
-  });
+// Make sure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads/quiz-images');
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
 }
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/quizzes', quizRoutes);
+app.use('/api/statistics', statisticsRoutes);
 
 // Basic route for testing
 app.get('/', (req, res) => {
   res.json({ message: 'TestCraft.ai API is running' });
 });
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Global error handler:', err);
+  res.status(500).json({
+    success: false,
+    error: 'Internal server error',
+    message: err.message
+  });
+});
+
+// Initialize database tables
+function initializeDatabase() {
+  console.log('Initializing database with fresh schema...');
+  return new Promise((resolve, reject) => {
+    db.serialize(() => {
+      try {
+        // Users table
+        db.run(`CREATE TABLE IF NOT EXISTS users (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          email TEXT UNIQUE NOT NULL,
+          password TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+
+        // Quizzes table
+        db.run(`CREATE TABLE IF NOT EXISTS quizzes (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          title TEXT NOT NULL,
+          description TEXT,
+          creator_id INTEGER NOT NULL,
+          settings TEXT,
+          image_url TEXT,
+          status TEXT DEFAULT 'draft',
+          access_code TEXT UNIQUE,
+          published_at DATETIME,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (creator_id) REFERENCES users (id)
+        )`);
+
+        // Questions table
+        db.run(`CREATE TABLE IF NOT EXISTS questions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          quiz_id INTEGER NOT NULL,
+          type TEXT NOT NULL,
+          content TEXT NOT NULL,
+          options TEXT,
+          correct_answer TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (quiz_id) REFERENCES quizzes (id)
+        )`);
+
+        // Responses table
+        db.run(`CREATE TABLE IF NOT EXISTS responses (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          quiz_id INTEGER NOT NULL,
+          user_id INTEGER NOT NULL,
+          answers TEXT NOT NULL,
+          score REAL,
+          completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (quiz_id) REFERENCES quizzes (id),
+          FOREIGN KEY (user_id) REFERENCES users (id)
+        )`);
+
+        // Feedback table
+        db.run(`CREATE TABLE IF NOT EXISTS feedback (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          quiz_id INTEGER NOT NULL,
+          user_id INTEGER NOT NULL,
+          content TEXT NOT NULL,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          FOREIGN KEY (quiz_id) REFERENCES quizzes (id),
+          FOREIGN KEY (user_id) REFERENCES users (id)
+        )`, (err) => {
+          if (err) {
+            console.error('Error creating tables:', err);
+            reject(err);
+          } else {
+            console.log('Database schema initialized successfully');
+            resolve();
+          }
+        });
+      } catch (error) {
+        console.error('Error in database initialization:', error);
+        reject(error);
+      }
+    });
+  });
+}
 
 // Authentication Middleware
 const authenticateToken = (req, res, next) => {
@@ -106,7 +147,7 @@ const authenticateToken = (req, res, next) => {
         return res.status(401).json({ error: 'Access token required' });
     }
 
-    jwt.verify(token, JWT_SECRET, (err, user) => {
+    jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
         if (err) {
             return res.status(403).json({ error: 'Invalid token' });
         }
@@ -140,7 +181,7 @@ app.post('/api/auth/register', async (req, res) => {
                 // After successful registration, create and send token
                 const token = jwt.sign(
                     { id: this.lastID, email: email },
-                    JWT_SECRET,
+                    process.env.JWT_SECRET || 'your-secret-key',
                     { expiresIn: '24h' }
                 );
 
@@ -184,7 +225,7 @@ app.post('/api/auth/login', (req, res) => {
 
             const token = jwt.sign(
                 { id: user.id, email: user.email },
-                JWT_SECRET,
+                process.env.JWT_SECRET || 'your-secret-key',
                 { expiresIn: '24h' }
             );
 
@@ -212,10 +253,7 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
     });
 });
 
-// Routes
-app.use('/api/notifications', notificationRoutes);
-
 // Start server
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
-}); 
+});

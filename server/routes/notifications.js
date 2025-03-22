@@ -6,8 +6,8 @@ const auth = require('../middleware/auth');
 // Get all notifications for the current user
 router.get('/', auth, async (req, res) => {
   try {
-    const notifications = await Notification.find({ 
-      userId: req.user._id 
+    const notifications = await Notification.find({
+      userId: req.user._id
     }).sort({ createdAt: -1 });
 
     res.json(notifications);
@@ -20,11 +20,11 @@ router.get('/', auth, async (req, res) => {
 router.put('/read', auth, async (req, res) => {
   try {
     const { notificationIds } = req.body;
-    
+
     await Notification.updateMany(
-      { 
+      {
         _id: { $in: notificationIds },
-        userId: req.user._id 
+        userId: req.user._id
       },
       { $set: { read: true } }
     );

@@ -1,0 +1,1413 @@
+import React, { useState, Fragment, useEffect, useRef } from 'react'
+import { Tab } from '@headlessui/react'
+import { Combobox, Listbox } from '@headlessui/react'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { toast } from 'react-hot-toast'
+import DashboardLayout from '../components/DashboardLayout'
+import QuestionForm from '../components/QuestionForm'
+import { 
+  DocumentTextIcon,
+  SparklesIcon,
+  PlusIcon,
+  ArrowLeftIcon,
+  CheckCircleIcon,
+  ChevronUpDownIcon,
+  CheckIcon
+} from '@heroicons/react/24/outline'
+import cloudUploadIcon from '../assets/cloud-upload.svg'
+import logoAI from '../assets/logoai.svg'
+import QuizPreview from '../components/QuizPreview'
+import { Switch } from '@headlessui/react'
+import QuizPublishSuccess from '../components/QuizPublishSuccess';
+
+const QUESTION_TYPES = [
+  { id: 'multiple_choice', label: 'Multiple Choice' },
+  { id: 'true_false', label: 'True/False' },
+  { id: 'paragraph', label: 'Paragraph' },
+  { id: 'matching', label: 'Matching' },
+  { id: 'fill_in_blanks', label: 'Fill in the Blanks' },
+  { id: 'file_upload', label: 'File Upload' },
+  { id: 'dropdown', label: 'Dropdown' }
+]
+
+const emptyQuestion = {
+  type: 'multiple_choice',
+  content: '',
+  options: ['', ''],
+  correctAnswer: 0,
+  explanation: ''
+}
+
+const steps = [
+  { id: 'details', name: 'Enter Quiz Details' },
+  { id: 'questions', name: 'Add Questions' },
+  { id: 'settings', name: 'Quiz Settings' },
+  { id: 'preview', name: 'Preview and Save' },
+  { id: 'publish', name: 'Publish' },
+]
+
+export default function CreateQuiz() {
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [currentStep, setCurrentStep] = useState('details')
+  const [quizData, setQuizData] = React.useState({
+    title: '',
+    description: '',
+    timeLimit: '',
+    timeUnit: 'minutes',
+    complexity: 'intermediate',
+    category: 'General',
+    questions: [],
+    image: null,
+    numberOfQuestions: 5,
+    selectedQuestionTypes: ['multiple_choice', 'true_false'],
+    settings: {
+      shuffle: false,
+      passMark: 60,
+      autoGrade: true,
+      showAnswers: false,
+      allowReview: true,
+      showTimer: true,
+      showProgress: true,
+      attemptsAllowed: 1,
+      requireCamera: false,
+      blockTabSwitch: false,
+      showFeedback: true
+    }
+  })
+  const [aiData, setAiData] = React.useState({
+    topic: '',
+    instructions: '',
+    complexity: 'intermediate',
+    category: 'General',
+    loading: false,
+    generatedQuestions: null
+  })
+  const [query, setQuery] = useState('')
+  const [imagePreview, setImagePreview] = useState(null);
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [publishSuccess, setPublishSuccess] = useState({
+    show: false,
+    accessCode: '',
+    accessLink: ''
+  });
+  const categories = [
+    'General',
+    'History',
+    'Science',
+    'Mathematics',
+    'Literature',
+    'Technology',
+    'Art',
+    'Music',
+    'Geography',
+    'Sports'
+  ]
+
+  const filteredCategories = query === ''
+    ? categories
+    : categories.filter((category) => {
+        return category.toLowerCase().includes(query.toLowerCase())
+      })
+
+  // Set initial tab based on navigation state
+  const defaultIndex = location.state?.isAI ? 1 : 0
+  
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isPublishing, setIsPublishing] = useState(false);
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target
+    setQuizData(prev => ({
+      ...prev,
+      [name]: value
+    }))
+  }
+
+  const handleAIInputChange = (e) => {
+    const { name, value } = e.target;
+    setAiData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  }
+
+  const handleAddQuestion = () => {
+    // Get a random question type from selected types
+    const availableTypes = quizData.selectedQuestionTypes.length > 0 
+      ? quizData.selectedQuestionTypes 
+      : ['multiple_choice']
+    
+    const questionType = availableTypes[Math.floor(Math.random() * availableTypes.length)]
+    
+    let newQuestion = { ...emptyQuestion, type: questionType }
+    
+    // Initialize question based on type
+    switch(questionType) {
+      case 'true_false':
+        newQuestion.options = ['True', 'False']
+        newQuestion.correctAnswer = 0
+        break
+      case 'multiple_choice':
+        newQuestion.options = ['Option 1', 'Option 2']
+        newQuestion.correctAnswer = 0
+        break
+      case 'paragraph':
+        newQuestion.options = []
+        newQuestion.correctAnswer = ''
+        break
+      case 'matching':
+        newQuestion.options = [
+          { left: 'Item 1', right: 'Match 1' },
+          { left: 'Item 2', right: 'Match 2' }
+        ]
+        newQuestion.correctAnswer = [0, 1]
+        break
+      case 'fill_in_blanks':
+      case 'fill_in_blank':
+        newQuestion.type = 'fill_in_blank'
+        newQuestion.options = []
+        newQuestion.correctAnswer = ['']
+        break
+      case 'file_upload':
+        newQuestion.options = ['.pdf,.doc,.docx', '5']
+        newQuestion.correctAnswer = ''
+        break
+      case 'dropdown':
+        newQuestion.options = ['Option 1', 'Option 2']
+        newQuestion.correctAnswer = 0
+        break
+    }
+    
+    setQuizData(prev => ({
+      ...prev,
+      questions: [...prev.questions, newQuestion]
+    }))
+  }
+
+  const handleQuestionChange = (index, updatedQuestion) => {
+    setQuizData(prev => ({
+      ...prev,
+      questions: prev.questions.map((q, i) => i === index ? updatedQuestion : q)
+    }))
+  }
+
+  const handleDeleteQuestion = (index) => {
+    setQuizData(prev => ({
+      ...prev,
+      questions: prev.questions.filter((_, i) => i !== index)
+    }))
+  }
+
+  const handleImageUpload = async (file) => {
+    // Show preview immediately
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setImagePreview(reader.result);
+    };
+    reader.readAsDataURL(file);
+
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const response = await fetch('http://localhost:3001/api/quizzes/upload-image', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        body: formData
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to upload image');
+      }
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setQuizData(prev => ({
+          ...prev,
+          imageUrl: data.imageUrl
+        }));
+        toast.success('Image uploaded successfully!');
+      }
+    } catch (error) {
+      console.error('Error uploading image:', error);
+      toast.error('Failed to upload image. Please try again.');
+      setImagePreview(null); // Clear preview on error
+    }
+  };
+
+  const handleImageChange = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      setSelectedImage(file);
+      setImagePreview(URL.createObjectURL(file));
+      
+      const formData = new FormData();
+      formData.append('image', file);
+
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('http://localhost:3001/api/quizzes/upload-image', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          },
+          body: formData
+        });
+
+        const data = await response.json();
+        if (data.success) {
+          setQuizData(prev => ({
+            ...prev,
+            image_url: data.imageUrl
+          }));
+          toast.success('Image uploaded successfully');
+        } else {
+          throw new Error(data.error || 'Failed to upload image');
+        }
+      } catch (error) {
+        console.error('Error uploading image:', error);
+        toast.error('Failed to upload image');
+      }
+    }
+  };
+
+  const handleSettingChange = (key, value) => {
+    setQuizData(prev => ({
+      ...prev,
+      settings: {
+        ...prev.settings,
+        [key]: value
+      }
+    }))
+  }
+
+  const validateQuestions = (questions) => {
+    questions.forEach((question, i) => {
+      if (!question.content || !question.type) {
+        throw new Error(`Question ${i + 1} is missing required fields`);
+      }
+
+      switch (question.type) {
+        case 'multiple_choice':
+        case 'dropdown':
+          if (!Array.isArray(question.options) || question.options.length < 2) {
+            throw new Error(`Question ${i + 1} must have at least 2 options`);
+          }
+          if (typeof question.correctAnswer !== 'number' || question.correctAnswer < 0 || question.correctAnswer >= question.options.length) {
+            throw new Error(`Question ${i + 1} has an invalid correct answer`);
+          }
+          break;
+
+        case 'true_false':
+          if (!Array.isArray(question.options) || question.options.length !== 2 ||
+              !question.options.includes('True') || !question.options.includes('False')) {
+            throw new Error(`Question ${i + 1} (True/False): Options must be "True" and "False"`);
+          }
+          if (typeof question.correctAnswer !== 'number' || question.correctAnswer < 0 || question.correctAnswer > 1) {
+            throw new Error(`Question ${i + 1} (True/False) has an invalid correct answer`);
+          }
+          break;
+
+        case 'paragraph':
+          if (typeof question.correctAnswer !== 'string' || !question.correctAnswer.trim()) {
+            throw new Error(`Question ${i + 1} (Paragraph) must have a sample answer`);
+          }
+          break;
+
+        case 'matching':
+          if (!Array.isArray(question.options) || question.options.length < 2) {
+            throw new Error(`Question ${i + 1} (Matching) must have at least 2 pairs`);
+          }
+          if (!question.options.every(opt => opt && typeof opt === 'object' && opt.left && opt.right)) {
+            throw new Error(`Question ${i + 1} (Matching): Each pair must have non-empty 'left' and 'right' values`);
+          }
+          break;
+
+        case 'fill_in_blank':
+        case 'fill_in_blanks':
+          if (!Array.isArray(question.correctAnswer) || !question.correctAnswer.length) {
+            throw new Error(`Question ${i + 1} (Fill in Blanks) must have at least one answer`);
+          }
+          if (!question.correctAnswer.every(ans => typeof ans === 'string' && ans.trim())) {
+            throw new Error(`Question ${i + 1} (Fill in Blanks): All answers must be non-empty`);
+          }
+          break;
+
+        case 'file_upload':
+          if (!Array.isArray(question.options) || question.options.length !== 2) {
+            throw new Error(`Question ${i + 1} (File Upload) must have file type and size restrictions`);
+          }
+          break;
+
+        default:
+          throw new Error(`Question ${i + 1} has an invalid type: ${question.type}`);
+      }
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setIsSaving(true);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Please log in to save the quiz');
+      }
+
+      // Validate questions
+      validateQuestions(quizData.questions);
+
+      console.log('Submitting quiz data:', quizData);
+
+      // Ensure we send the imageUrl with the quiz data
+      const quizPayload = {
+        ...quizData,
+        image: quizData.imageUrl // Include the image URL in the payload
+      };
+
+      const response = await fetch('http://localhost:3001/api/quizzes', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(quizPayload)
+      });
+
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || `Server error: ${response.status}`);
+      }
+
+      console.log('Save response:', data);
+
+      // Check for either id or quizId in the response
+      const quizId = data.id || data.quizId;
+      if (!quizId) {
+        throw new Error('No quiz ID received from server');
+      }
+
+      // Update quiz data with the received ID
+      setQuizData(prevData => ({
+        ...prevData,
+        id: quizId
+      }));
+
+      // Show success message
+      toast.success('Quiz saved successfully!', {
+        duration: 3000,
+        position: 'top-center'
+      });
+
+      // Wait for state to update
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Move to publish step
+      setCurrentStep('publish');
+    } catch (error) {
+      console.error('Error saving quiz:', error);
+      toast.error(error.message || 'Failed to save quiz', {
+        duration: 5000,
+        position: 'top-center'
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  const handlePublish = async () => {
+    try {
+      if (isPublishing) return; // Prevent multiple clicks
+      
+      setIsPublishing(true);
+      const token = localStorage.getItem('token')
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
+      
+      if (!quizData.id) {
+        console.error('Quiz data:', quizData);
+        throw new Error('Quiz ID not found. Please try saving the quiz again.');
+      }
+      
+      console.log('Publishing quiz with ID:', quizData.id);
+      
+      // Create AbortController for timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      try {
+        const response = await fetch(`http://localhost:3001/api/quizzes/${quizData.id}/publish`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          signal: controller.signal
+        });
+
+        // Clear timeout since request completed
+        clearTimeout(timeoutId);
+
+        // First try to parse as JSON
+        let data;
+        try {
+          data = await response.json();
+        } catch (e) {
+          console.error('Failed to parse response as JSON');
+          throw new Error('Server returned an invalid response');
+        }
+
+        if (!response.ok) {
+          throw new Error(data.error || `Server error: ${response.status}`);
+        }
+
+        if (!data.success) {
+          throw new Error(data.error || 'Failed to publish quiz');
+        }
+
+        console.log('Publish response:', data);
+
+        // Show success message with access code
+        setPublishSuccess({
+          show: true,
+          accessCode: data.accessCode,
+          accessLink: data.accessLink
+        });
+
+        // Update quiz data
+        setQuizData(prev => ({
+          ...prev,
+          accessCode: data.accessCode,
+          isPublished: true
+        }));
+
+        // Success toast
+        toast.success('Quiz published successfully!');
+
+        // Remove auto-navigation
+        setIsPublishing(false);
+
+      } catch (error) {
+        // Clear timeout if there was an error
+        clearTimeout(timeoutId);
+        throw error; // Re-throw to be caught by outer catch
+      }
+
+    } catch (error) {
+      console.error('Error publishing quiz:', error);
+      
+      // Handle specific error types
+      let errorMessage = 'Failed to publish quiz';
+      if (error.name === 'AbortError') {
+        errorMessage = 'Publishing timed out. Please try again.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      toast.error(errorMessage, {
+        duration: 5000,
+        position: 'top-center'
+      });
+      setIsPublishing(false);
+    }
+  };
+
+  const handleNextStep = (e) => {
+    e.preventDefault()
+    
+    // Validate current step
+    if (currentStep === 'details') {
+      if (!quizData.title || !quizData.description || !quizData.timeLimit) {
+        toast.error('Please fill in all required fields')
+        return
+      }
+    } else if (currentStep === 'questions') {
+      if (quizData.questions.length === 0) {
+        toast.error('Please add at least one question')
+        return
+      }
+    }
+    
+    // Move to next step
+    const currentIndex = steps.findIndex(step => step.id === currentStep)
+    if (currentIndex < steps.length - 1) {
+      setCurrentStep(steps[currentIndex + 1].id)
+    }
+  }
+
+  const handleGenerateWithAI = async () => {
+    try {
+      // Validate required fields
+      const missingFields = [];
+      if (!quizData.title) missingFields.push('title');
+      if (!quizData.description) missingFields.push('description');
+      if (!quizData.complexity) missingFields.push('complexity');
+      if (!quizData.category) missingFields.push('category');
+
+      if (missingFields.length > 0) {
+        toast.error(`Please fill in: ${missingFields.join(', ')}`);
+        return;
+      }
+
+      setIsGenerating(true);
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No authentication token found');
+      }
+
+      const response = await fetch('http://localhost:3001/api/quizzes/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          topic: quizData.title,
+          instructions: quizData.description,
+          complexity: quizData.complexity,
+          category: quizData.category,
+          numberOfQuestions: quizData.numberOfQuestions || 5,
+          questionTypes: quizData.selectedQuestionTypes || ['multiple_choice']
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || `Server error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.success || !data.questions) {
+        throw new Error('Failed to generate questions');
+      }
+
+      // Format questions to match our expected structure
+      const formattedQuestions = data.questions.map(q => ({
+        content: q.text || q.content,
+        type: q.type || 'multiple_choice',
+        explanation: q.explanation || '',
+        options: q.options || ['Option 1', 'Option 2', 'Option 3', 'Option 4'],
+        correctAnswer: typeof q.correctAnswer === 'number' ? q.correctAnswer : 0
+      }));
+
+      // Update quiz data with generated questions
+      setQuizData(prev => ({
+        ...prev,
+        questions: [...prev.questions, ...formattedQuestions]
+      }));
+
+      // Move to questions tab
+      setCurrentStep('questions');
+      
+      toast.success('Questions generated successfully!');
+    } catch (error) {
+      console.error('Error generating quiz:', error);
+      toast.error(error.message || 'Failed to generate questions');
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleUseGeneratedQuestions = () => {
+    if (aiData.generatedQuestions) {
+      setQuizData(prev => ({
+        ...prev,
+        title: aiData.topic,
+        description: aiData.instructions,
+        questions: aiData.generatedQuestions
+      }))
+      toast.success('Questions added to your quiz!')
+    }
+  }
+
+  const difficulties = [
+    { id: 'beginner', name: 'Beginner' },
+    { id: 'intermediate', name: 'Intermediate' },
+    { id: 'advanced', name: 'Advanced' }
+  ]
+
+  const processRef = React.useRef(null);
+
+  // Scroll process into view when step changes
+  useEffect(() => {
+    if (processRef.current) {
+      processRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [currentStep]);
+
+  return (
+    <DashboardLayout>
+      {/* Breadcrumb */}
+      <nav className="border-b border-slate-200">
+        <div className="flex items-center gap-2 py-4 px-4">
+          <button 
+            onClick={() => navigate('/dashboard')}
+            className="text-slate-500 hover:text-slate-700"
+          >
+            <ArrowLeftIcon className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-2">
+            <a href="/dashboard" className="text-[14px] font-medium text-slate-500">New Content</a>
+            <span className="text-slate-300">/</span>
+            <span className="text-[14px] font-medium text-[#06545E]">New Quiz</span>
+          </div>
+        </div>
+      </nav>
+
+      {/* Progress Steps */}
+      <div ref={processRef} className="relative border-b border-slate-200">
+        <div className="overflow-x-auto hide-scrollbar">
+          <nav className="flex items-center gap-4 px-4 py-6 min-w-max">
+            {steps.map((step, index) => {
+              const isActive = currentStep === step.id
+              const isPrevious = steps.findIndex(s => s.id === currentStep) > index
+
+              return (
+                <div 
+                  key={step.id}
+                  className={`flex items-center ${index !== steps.length - 1 ? 'gap-4' : ''}`}
+                >
+                  <button
+                    className={`flex items-center gap-2 min-w-max ${
+                      isActive ? 'text-[#06545E]' : isPrevious ? 'text-slate-400' : 'text-slate-500'
+                    }`}
+                    onClick={() => setCurrentStep(step.id)}
+                  >
+                    <span className={`
+                      w-8 h-8 rounded-full flex items-center justify-center border-2
+                      ${isActive ? 'border-[#06545E] bg-[#06545E] text-white' : 
+                        isPrevious ? 'border-slate-200 bg-slate-200 text-white' : 
+                        'border-slate-200 text-slate-500'}
+                    `}>
+                      {isPrevious ? (
+                        <CheckCircleIcon className="w-5 h-5" />
+                      ) : (
+                        <span>{index + 1}</span>
+                      )}
+                    </span>
+                    <span className="text-sm font-medium">{step.name}</span>
+                  </button>
+
+                  {index !== steps.length - 1 && (
+                    <div className={`h-[2px] w-8 ${
+                      isPrevious ? 'bg-slate-200' : 'bg-slate-100'
+                    }`} />
+                  )}
+                </div>
+              )
+            })}
+          </nav>
+        </div>
+      </div>
+
+      {/* Header */}
+      <div className="px-4 mb-8 mt-4 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-slate-900 sm:text-xl">
+            {currentStep === 'details' ? 'Create New Quiz' : quizData.title || 'Untitled Quiz'}
+          </h1>
+          <p className="text-slate-600 text-sm mt-1">
+            {currentStep === 'details' 
+              ? 'Fill in the details below to create your quiz'
+              : quizData.description 
+                ? quizData.description.length > 120 
+                  ? `${quizData.description.slice(0, 120)}...` 
+                  : quizData.description
+                : 'No description provided'}
+          </p>
+        </div>
+        {currentStep === 'questions' && (
+          <button
+            onClick={() => setCurrentStep('preview')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium ${
+              currentStep === 'preview'
+                ? 'bg-[#06545E] text-white'
+                : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            Preview
+          </button>
+        )}
+      </div>
+
+      {/* Quiz Form */}
+      <div className="px-4">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 lg:p-8">
+          {currentStep === 'details' ? (
+            <div className="space-y-6">
+              {/* Image Upload */}
+              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-slate-400 border-dashed rounded-2xl">
+                <div className="space-y-2 text-center">
+                  {imagePreview ? (
+                    <div className="relative">
+                      <img src={imagePreview} alt="Quiz cover" className="mx-auto h-32 w-auto rounded-lg" />
+                      <button
+                        onClick={() => {
+                          setImagePreview(null);
+                          setQuizData(prev => ({ ...prev, imageUrl: null }));
+                        }}
+                        className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <img src={cloudUploadIcon} alt="Upload" className="mx-auto h-12 w-12 text-slate-400" />
+                      <div className="text-sm text-slate-600">
+                        <label htmlFor="file-upload" className="relative cursor-pointer text-[#06545E] hover:text-[#06545E]/80 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-[#06545E]">
+                          <span>Add cover image</span>
+                          <input 
+                            id="file-upload" 
+                            name="file-upload" 
+                            type="file"
+                            accept=".svg,.png,.gif,.jpg,.jpeg"
+                            className="sr-only"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                handleImageChange(e);
+                              }
+                            }}
+                          />
+                        </label>
+                        <p className="pl-1">or drag and drop</p>
+                      </div>
+                      <p className="text-xs text-slate-500">SVG, PNG, GIF, JPG or JPEG</p>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="title" className="block text-sm font-medium text-slate-700 mb-1">
+                    Quiz Title
+                  </label>
+                  <input
+                    type="text"
+                    id="title"
+                    name="title"
+                    value={quizData.title}
+                    onChange={handleInputChange}
+                    placeholder="Enter quiz title"
+                    className="quiz-input"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="description" className="block text-sm font-medium text-slate-700 mb-1">
+                    Description
+                  </label>
+                  <textarea
+                    id="description"
+                    name="description"
+                    value={quizData.description}
+                    onChange={handleInputChange}
+                    placeholder="Enter quiz description"
+                    rows={3}
+                    className="quiz-input !h-auto"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="category" className="block text-sm font-medium text-slate-700 mb-1">
+                      Category
+                    </label>
+                    <Combobox
+                      value={quizData.category}
+                      onChange={value => setQuizData(prev => ({ ...prev, category: value }))}
+                    >
+                      <div className="relative mt-0">
+                        <Combobox.Input
+                          className="quiz-input"
+                          onChange={(event) => setQuery(event.target.value)}
+                          displayValue={(category) => category}
+                        />
+                        <Combobox.Button className="absolute inset-y-0 right-0 flex items-center pr-2">
+                          <ChevronUpDownIcon
+                            className="h-5 w-5 text-gray-400"
+                            aria-hidden="true"
+                          />
+                        </Combobox.Button>
+                        <Combobox.Options className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                          {filteredCategories.map((category) => (
+                            <Combobox.Option
+                              key={category}
+                              value={category}
+                              className={({ active }) =>
+                                `relative cursor-pointer select-none py-2 pl-10 pr-4 ${
+                                  active ? 'bg-[#06545E] text-white' : 'text-gray-900'
+                                }`
+                              }
+                            >
+                              {({ selected, active }) => (
+                                <>
+                                  <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>
+                                    {category}
+                                  </span>
+                                  {selected ? (
+                                    <span
+                                      className={`absolute inset-y-0 left-0 flex items-center pl-3 ${
+                                        active ? 'text-white' : 'text-[#06545E]'
+                                      }`}
+                                    >
+                                      <CheckIcon className="h-5 w-5" aria-hidden="true" />
+                                    </span>
+                                  ) : null}
+                                </>
+                              )}
+                            </Combobox.Option>
+                          ))}
+                        </Combobox.Options>
+                      </div>
+                    </Combobox>
+                  </div>
+
+                  <div>
+                    <label htmlFor="complexity" className="block text-sm font-medium text-slate-700 mb-1">
+                      Difficulty Level
+                    </label>
+                    <Listbox
+                      value={quizData.complexity}
+                      onChange={value => setQuizData(prev => ({ ...prev, complexity: value }))}
+                    >
+                      <div className="relative mt-0">
+                        <Listbox.Button className="quiz-input text-left">
+                          <div className="flex items-center h-full">
+                            <span className="block truncate">
+                              {difficulties.find(d => d.id === quizData.complexity)?.name}
+                            </span>
+                            <span className="absolute inset-y-0 right-0 flex items-center pr-2">
+                              <ChevronUpDownIcon
+                                className="h-5 w-5 text-gray-400"
+                                aria-hidden="true"
+                              />
+                            </span>
+                          </div>
+                        </Listbox.Button>
+                        <Listbox.Options className="absolute z-10 mt-1 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                          {difficulties.map((difficulty) => (
+                            <Listbox.Option
+                              key={difficulty.id}
+                              value={difficulty.id}
+                              className={({ active }) =>
+                                `relative cursor-pointer select-none py-2 px-4 ${
+                                  active ? 'bg-[#06545E] text-white' : 'text-gray-900'
+                                }`
+                              }
+                            >
+                              {({ selected, active }) => (
+                                <>
+                                  <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>
+                                    {difficulty.name}
+                                  </span>
+                                  {selected ? (
+                                    <span
+                                      className={`absolute inset-y-0 left-0 flex items-center pl-3 ${
+                                        active ? 'text-white' : 'text-[#06545E]'
+                                      }`}
+                                    >
+                                      <CheckIcon className="h-5 w-5" aria-hidden="true" />
+                                    </span>
+                                  ) : null}
+                                </>
+                              )}
+                            </Listbox.Option>
+                          ))}
+                        </Listbox.Options>
+                      </div>
+                    </Listbox>
+                  </div>
+
+                  <div>
+                    <label htmlFor="timeLimit" className="block text-sm font-medium text-slate-700 mb-1">
+                      Duration
+                    </label>
+                    <div className="flex gap-2">
+                      <div className="flex-1">
+                        <input
+                          type="number"
+                          id="timeLimit"
+                          name="timeLimit"
+                          value={quizData.timeLimit}
+                          onChange={handleInputChange}
+                          placeholder="Enter time limit"
+                          className="quiz-input"
+                          min="1"
+                          required
+                        />
+                      </div>
+                      <div className="w-32">
+                        <Listbox
+                          value={quizData.timeUnit}
+                          onChange={value => setQuizData(prev => ({ ...prev, timeUnit: value }))}
+                        >
+                          <div className="relative">
+                            <Listbox.Button className="quiz-input text-left">
+                              <div className="flex items-center h-full">
+                                <span className="block truncate">
+                                  {quizData.timeUnit}
+                                </span>
+                                <span className="absolute inset-y-0 right-0 flex items-center pr-2">
+                                  <ChevronUpDownIcon
+                                    className="h-5 w-5 text-gray-400"
+                                    aria-hidden="true"
+                                  />
+                                </span>
+                              </div>
+                            </Listbox.Button>
+                            <Listbox.Options className="absolute z-10 mt-1 w-full overflow-auto rounded-md bg-white py-1 text-base shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
+                              {['minutes', 'hours'].map((unit) => (
+                                <Listbox.Option
+                                  key={unit}
+                                  value={unit}
+                                  className={({ active }) =>
+                                    `relative cursor-pointer select-none py-2 px-4 ${
+                                      active ? 'bg-[#06545E] text-white' : 'text-gray-900'
+                                    }`
+                                  }
+                                >
+                                  {({ selected, active }) => (
+                                    <span className={`block truncate ${selected ? 'font-medium' : 'font-normal'}`}>
+                                      {unit}
+                                    </span>
+                                  )}
+                                </Listbox.Option>
+                              ))}
+                            </Listbox.Options>
+                          </div>
+                        </Listbox>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="numberOfQuestions" className="block text-sm font-medium text-slate-700 mb-1">
+                      Number of Questions
+                    </label>
+                    <input
+                      type="number"
+                      id="numberOfQuestions"
+                      name="numberOfQuestions"
+                      value={quizData.numberOfQuestions}
+                      onChange={handleInputChange}
+                      placeholder="Enter number of questions"
+                      className="quiz-input"
+                      min="1"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-slate-700">
+                  Question Types
+                </label>
+                <div className="space-y-2">
+                  {QUESTION_TYPES.map(type => (
+                    <label key={type.id} className="flex items-center">
+                      <input
+                        type="checkbox"
+                        checked={quizData.selectedQuestionTypes.includes(type.id)}
+                        onChange={(e) => {
+                          const isChecked = e.target.checked;
+                          setQuizData(prev => ({
+                            ...prev,
+                            selectedQuestionTypes: isChecked
+                              ? [...prev.selectedQuestionTypes, type.id]
+                              : prev.selectedQuestionTypes.filter(t => t !== type.id)
+                          }));
+                        }}
+                        className="h-4 w-4 text-[#06545E] focus:ring-[#06545E] border-slate-300 rounded accent-[#06545E]"
+                      />
+                      <span className="ml-2 text-sm text-slate-700">{type.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* AI Generation Button */}
+              <div className="pt-6 border-t border-slate-200">
+                <button
+                  type="button"
+                  onClick={handleGenerateWithAI}
+                  disabled={isGenerating}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 text-sm font-medium text-slate-900 bg-slate-100 hover:bg-slate-200 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isGenerating ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-slate-900" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Generating Questions...
+                    </>
+                  ) : (
+                    <>
+                      <SparklesIcon className="h-5 w-5 text-slate-900" />
+                      Generate Questions with AI
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Add padding at the bottom to account for fixed buttons */}
+              <div className="pb-24" />
+            </div>
+          ) : currentStep === 'questions' ? (
+            <div className="space-y-6 pb-32">
+              {quizData.questions.map((question, index) => (
+                <QuestionForm
+                  key={index}
+                  question={question}
+                  onChange={(updatedQuestion) => handleQuestionChange(index, updatedQuestion)}
+                  onDelete={() => handleDeleteQuestion(index)}
+                  questionNumber={index + 1}
+                />
+              ))}
+
+              <button
+                type="button"
+                onClick={handleAddQuestion}
+                className="w-full py-4 border-2 border-dashed border-slate-300 rounded-xl text-sm font-medium text-slate-600 hover:text-slate-900 hover:border-slate-400 flex items-center justify-center gap-2"
+              >
+                <PlusIcon className="w-5 h-5" />
+                Add Question
+              </button>
+            </div>
+          ) : currentStep === 'settings' ? (
+            <div className="space-y-8">
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium text-slate-900">Quiz Settings</h3>
+                
+                {/* Grading Settings */}
+                <div className="space-y-4">
+                  <h4 className="text-base font-medium text-slate-700">Grading</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Pass Mark (%)</label>
+                        <p className="text-sm text-slate-500">Minimum percentage required to pass</p>
+                      </div>
+                      <input
+                        type="number"
+                        value={quizData.settings.passMark}
+                        onChange={(e) => handleSettingChange('passMark', parseInt(e.target.value))}
+                        className="w-24 px-3 py-2 text-right rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#06545E] focus:border-transparent"
+                        min="0"
+                        max="100"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Auto Grade</label>
+                        <p className="text-sm text-slate-500">Automatically grade objective questions</p>
+                      </div>
+                      <Switch
+                        checked={quizData.settings.autoGrade}
+                        onChange={(checked) => handleSettingChange('autoGrade', checked)}
+                        className={`${
+                          quizData.settings.autoGrade ? 'bg-[#06545E]' : 'bg-slate-200'
+                        } relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#06545E] focus:ring-offset-2`}
+                      >
+                        <span
+                          className={`${
+                            quizData.settings.autoGrade ? 'translate-x-4' : 'translate-x-1'
+                          } inline-block h-3 w-3 transform rounded-full bg-white transition-transform`}
+                        />
+                      </Switch>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quiz Flow Settings */}
+                <div className="space-y-4">
+                  <h4 className="text-base font-medium text-slate-700">Quiz Flow</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Shuffle Questions</label>
+                        <p className="text-sm text-slate-500">Randomize question order for each attempt</p>
+                      </div>
+                      <Switch
+                        checked={quizData.settings.shuffle}
+                        onChange={(checked) => handleSettingChange('shuffle', checked)}
+                        className={`${
+                          quizData.settings.shuffle ? 'bg-[#06545E]' : 'bg-slate-200'
+                        } relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#06545E] focus:ring-offset-2`}
+                      >
+                        <span
+                          className={`${
+                            quizData.settings.shuffle ? 'translate-x-4' : 'translate-x-1'
+                          } inline-block h-3 w-3 transform rounded-full bg-white transition-transform`}
+                        />
+                      </Switch>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Show Timer</label>
+                        <p className="text-sm text-slate-500">Display countdown timer during quiz</p>
+                      </div>
+                      <Switch
+                        checked={quizData.settings.showTimer}
+                        onChange={(checked) => handleSettingChange('showTimer', checked)}
+                        className={`${
+                          quizData.settings.showTimer ? 'bg-[#06545E]' : 'bg-slate-200'
+                        } relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#06545E] focus:ring-offset-2`}
+                      >
+                        <span
+                          className={`${
+                            quizData.settings.showTimer ? 'translate-x-4' : 'translate-x-1'
+                          } inline-block h-3 w-3 transform rounded-full bg-white transition-transform`}
+                        />
+                      </Switch>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Show Progress</label>
+                        <p className="text-sm text-slate-500">Display progress bar during quiz</p>
+                      </div>
+                      <Switch
+                        checked={quizData.settings.showProgress}
+                        onChange={(checked) => handleSettingChange('showProgress', checked)}
+                        className={`${
+                          quizData.settings.showProgress ? 'bg-[#06545E]' : 'bg-slate-200'
+                        } relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#06545E] focus:ring-offset-2`}
+                      >
+                        <span
+                          className={`${
+                            quizData.settings.showProgress ? 'translate-x-4' : 'translate-x-1'
+                          } inline-block h-3 w-3 transform rounded-full bg-white transition-transform`}
+                        />
+                      </Switch>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Results Settings */}
+                <div className="space-y-4">
+                  <h4 className="text-base font-medium text-slate-700">Results</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Show Answers</label>
+                        <p className="text-sm text-slate-500">Display correct answers after submission</p>
+                      </div>
+                      <Switch
+                        checked={quizData.settings.showAnswers}
+                        onChange={(checked) => handleSettingChange('showAnswers', checked)}
+                        className={`${
+                          quizData.settings.showAnswers ? 'bg-[#06545E]' : 'bg-slate-200'
+                        } relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#06545E] focus:ring-offset-2`}
+                      >
+                        <span
+                          className={`${
+                            quizData.settings.showAnswers ? 'translate-x-4' : 'translate-x-1'
+                          } inline-block h-3 w-3 transform rounded-full bg-white transition-transform`}
+                        />
+                      </Switch>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Allow Review</label>
+                        <p className="text-sm text-slate-500">Let students review their answers</p>
+                      </div>
+                      <Switch
+                        checked={quizData.settings.allowReview}
+                        onChange={(checked) => handleSettingChange('allowReview', checked)}
+                        className={`${
+                          quizData.settings.allowReview ? 'bg-[#06545E]' : 'bg-slate-200'
+                        } relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#06545E] focus:ring-offset-2`}
+                      >
+                        <span
+                          className={`${
+                            quizData.settings.allowReview ? 'translate-x-4' : 'translate-x-1'
+                          } inline-block h-3 w-3 transform rounded-full bg-white transition-transform`}
+                        />
+                      </Switch>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Show Feedback</label>
+                        <p className="text-sm text-slate-500">Display feedback form after completion</p>
+                      </div>
+                      <Switch
+                        checked={quizData.settings.showFeedback}
+                        onChange={(checked) => handleSettingChange('showFeedback', checked)}
+                        className={`${
+                          quizData.settings.showFeedback ? 'bg-[#06545E]' : 'bg-slate-200'
+                        } relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#06545E] focus:ring-offset-2`}
+                      >
+                        <span
+                          className={`${
+                            quizData.settings.showFeedback ? 'translate-x-4' : 'translate-x-1'
+                          } inline-block h-3 w-3 transform rounded-full bg-white transition-transform`}
+                        />
+                      </Switch>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Security Settings */}
+                <div className="space-y-4">
+                  <h4 className="text-base font-medium text-slate-700">Security</h4>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Attempts Allowed</label>
+                        <p className="text-sm text-slate-500">Number of attempts per student</p>
+                      </div>
+                      <input
+                        type="number"
+                        value={quizData.settings.attemptsAllowed}
+                        onChange={(e) => handleSettingChange('attemptsAllowed', e.target.value)}
+                        className="w-24 px-3 py-2 text-right rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#06545E] focus:border-transparent"
+                        min="1"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Require Camera</label>
+                        <p className="text-sm text-slate-500">Enable camera during quiz</p>
+                      </div>
+                      <Switch
+                        checked={quizData.settings.requireCamera}
+                        onChange={(checked) => handleSettingChange('requireCamera', checked)}
+                        className={`${
+                          quizData.settings.requireCamera ? 'bg-[#06545E]' : 'bg-slate-200'
+                        } relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#06545E] focus:ring-offset-2`}
+                      >
+                        <span
+                          className={`${
+                            quizData.settings.requireCamera ? 'translate-x-4' : 'translate-x-1'
+                          } inline-block h-3 w-3 transform rounded-full bg-white transition-transform`}
+                        />
+                      </Switch>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="text-sm font-medium text-slate-900">Block Tab Switching</label>
+                        <p className="text-sm text-slate-500">Prevent switching between tabs/windows</p>
+                      </div>
+                      <Switch
+                        checked={quizData.settings.blockTabSwitch}
+                        onChange={(checked) => handleSettingChange('blockTabSwitch', checked)}
+                        className={`${
+                          quizData.settings.blockTabSwitch ? 'bg-[#06545E]' : 'bg-slate-200'
+                        } relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#06545E] focus:ring-offset-2`}
+                      >
+                        <span
+                          className={`${
+                            quizData.settings.blockTabSwitch ? 'translate-x-4' : 'translate-x-1'
+                          } inline-block h-3 w-3 transform rounded-full bg-white transition-transform`}
+                        />
+                      </Switch>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : currentStep === 'preview' ? (
+            <div className="space-y-8">
+              <QuizPreview quiz={quizData} />
+            </div>
+          ) : currentStep === 'publish' ? (
+            <div className="space-y-8 p-4">
+              <div className="text-center">
+                <h3 className="text-lg font-medium text-slate-900">Ready to Publish</h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Your quiz is ready to be published. Once published, you'll receive an access code that you can share with your students.
+                </p>
+              </div>
+              
+              <div className="flex justify-center">
+                <button
+                  onClick={handlePublish}
+                  disabled={isPublishing}
+                  className="inline-flex items-center px-6 py-3 text-base font-medium text-white bg-[#06545E] rounded-full hover:bg-[#06545E]/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#06545E] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isPublishing ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Publishing...
+                    </>
+                  ) : (
+                    'Publish Quiz'
+                  )}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Sticky Bottom Actions */}
+      <div className="fixed bottom-0 w-full max-w-[700px] bg-white border-t border-slate-200">
+        <div className="px-4 sm:px-6">
+          <div className="py-4 flex items-center justify-between">
+            <div className="text-sm text-slate-600">
+              {quizData.questions.length} of {quizData.numberOfQuestions} questions created
+            </div>
+            <div className="flex items-center gap-4">
+              <button
+                type="button"
+                onClick={() => navigate('/dashboard')}
+                className="px-4 py-2 text-sm font-medium text-slate-700 hover:text-slate-900"
+              >
+                Cancel
+              </button>
+              {currentStep !== 'publish' && (
+                <button
+                  type="button"
+                  onClick={currentStep === 'preview' ? handleSubmit : handleNextStep}
+                  disabled={isSaving}
+                  className="inline-flex items-center px-6 py-2 text-sm font-medium text-white bg-[#06545E] rounded-full hover:bg-[#06545E]/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#06545E] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isSaving ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Saving...
+                    </>
+                  ) : currentStep === 'preview' ? (
+                    'Save Quiz'
+                  ) : (
+                    'Next Step'
+                  )}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <QuizPublishSuccess
+        isOpen={publishSuccess.show}
+        onClose={() => setPublishSuccess({ show: false, accessCode: '', accessLink: '' })}
+        accessCode={publishSuccess.accessCode}
+        accessLink={publishSuccess.accessLink}
+      />
+    </DashboardLayout>
+  )
+} 

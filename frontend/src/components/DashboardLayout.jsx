@@ -20,23 +20,22 @@ export default function DashboardLayout({ children }) {
   // Fetch notifications
   const fetchNotifications = async () => {
     try {
-      const response = await axios.get('/api/notifications')
-      // Ensure we always set an array
-      setNotifications(Array.isArray(response.data) ? response.data : [])
+      // Temporarily disabled
+      /*const response = await axios.get('/api/notifications')
+      setNotifications(response.data)*/
     } catch (error) {
       console.error('Error fetching notifications:', error)
-      setNotifications([])
     }
   }
 
   // Fetch unread count
   const fetchUnreadCount = async () => {
     try {
-      const response = await axios.get('/api/notifications/unread-count')
-      setUnreadCount(response.data.count || 0)
+      // Temporarily disabled
+      /*const response = await axios.get('/api/notifications/unread-count')
+      setUnreadCount(response.data.count)*/
     } catch (error) {
       console.error('Error fetching unread count:', error)
-      setUnreadCount(0)
     } finally {
       setLoading(false)
     }
@@ -243,4 +242,4 @@ export default function DashboardLayout({ children }) {
       </div>
     </div>
   )
-} 
+}
