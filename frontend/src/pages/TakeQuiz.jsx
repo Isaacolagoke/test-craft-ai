@@ -194,7 +194,7 @@ export default function TakeQuiz() {
       console.log("Submitting quiz with responses:", formattedResponses);
       
       const token = localStorage.getItem('token');
-      const url = `http://localhost:3001/api/quizzes/access/${params.accessCode}/submit`;
+      const url = `http://localhost:3001/api/quizzes/submit/${params.accessCode}`; // Fixed the endpoint URL to match server route
       
       console.log("Submission URL:", url);
       console.log("Using auth token:", token ? "Token found" : "No token");

@@ -524,7 +524,7 @@ export default function CreateQuiz() {
       
       try {
         const response = await fetch(`http://localhost:3001/api/quizzes/${quizData.id}/publish`, {
-          method: 'POST',
+          method: 'PUT', // Changed from POST to PUT to match the server route
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`
