@@ -37,8 +37,8 @@ function App() {
         <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/statistics" element={<PrivateRoute><Statistics /></PrivateRoute>} />
         <Route path="/create-quiz" element={<PrivateRoute><CreateQuiz /></PrivateRoute>} />
-        <Route path="/quiz/:id/view" element={<PrivateRoute><QuizView /></PrivateRoute>} />
-        <Route path="/quiz/:accessCode" element={<PrivateRoute><TakeQuiz /></PrivateRoute>} />
+        <Route path="/quiz/:accessCode/view" element={<PrivateRoute><QuizView /></PrivateRoute>} />
+        <Route path="/quiz/:accessCode" element={<TakeQuiz />} />
         <Route path="/quiz/:accessCode/results" element={<PrivateRoute><QuizResults /></PrivateRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>

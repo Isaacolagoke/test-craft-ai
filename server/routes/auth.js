@@ -296,4 +296,43 @@ router.post('/reset-password', async (req, res) => {
     }
 });
 
-module.exports = router; 
+// Verify token endpoint
+router.get('/verify', async (req, res) => {
+    try {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+
+        if (!token) {
+            return res.status(401).json({
+                success: false,
+                error: 'Access token is required'
+            });
+        }
+
+        // Verify token
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        
+        // Get user info
+        const user = await db.get('SELECT id, name, email FROM users WHERE id = ?', [decoded.id]);
+        
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            user
+        });
+    } catch (err) {
+        console.error('Token verification error:', err);
+        res.status(403).json({
+            success: false,
+            error: 'Invalid token'
+        });
+    }
+});
+
+module.exports = router;

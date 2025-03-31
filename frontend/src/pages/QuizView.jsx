@@ -1,11 +1,10 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { quizzes } from '../api';
 import { toast } from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 
 const QuizView = () => {
-  const { id } = useParams();
+  const { accessCode } = useParams();
   const navigate = useNavigate();
   const [quiz, setQuiz] = React.useState(null);
   const [loading, setLoading] = React.useState(true);
@@ -13,8 +12,23 @@ const QuizView = () => {
   React.useEffect(() => {
     const fetchQuiz = async () => {
       try {
-        const response = await quizzes.getById(id);
-        setQuiz(response.data);
+        const token = localStorage.getItem('token');
+        console.log('Fetching quiz with access code:', accessCode);
+        
+        const response = await fetch(`http://localhost:3001/api/quizzes/access/${accessCode}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to fetch quiz');
+        }
+        
+        console.log('Quiz data:', data);
+        setQuiz(data.quiz);
       } catch (error) {
         console.error('Error fetching quiz:', error);
         toast.error('Failed to load quiz');
@@ -25,7 +39,7 @@ const QuizView = () => {
     };
 
     fetchQuiz();
-  }, [id, navigate]);
+  }, [accessCode, navigate]);
 
   if (loading) {
     return (
@@ -109,17 +123,67 @@ const QuizView = () => {
                     {index + 1}. {question.text}
                   </p>
                   <div className="mt-3 ml-4 space-y-2">
-                    {question.options.map((option, optIndex) => (
-                      <div key={optIndex} className={`flex items-center ${
-                        option === question.correct_answer ? 'text-green-600' : 'text-gray-600'
-                      }`}>
-                        <span className="w-6">{String.fromCharCode(65 + optIndex)}.</span>
-                        <span>{option}</span>
-                        {option === question.correct_answer && (
-                          <span className="ml-2 text-xs font-medium">(Correct Answer)</span>
-                        )}
-                      </div>
-                    ))}
+                    {question.options.map((option, optIndex) => {
+                      // Handle different types of options based on their structure
+                      if (typeof option === 'object') {
+                        // Matching type question (left-right)
+                        if (option.left !== undefined && option.right !== undefined) {
+                          return (
+                            <div key={optIndex} className="flex items-center text-gray-600">
+                              <span className="w-6">{String.fromCharCode(65 + optIndex)}.</span>
+                              <span className="flex-1">
+                                <span className="font-medium">{option.left}</span>
+                                <span className="mx-2">→</span>
+                                <span>{option.right}</span>
+                              </span>
+                            </div>
+                          );
+                        }
+                        // True/False or similar with text and isCorrect
+                        else if (option.text !== undefined) {
+                          const isCorrect = option.isCorrect === true || 
+                                           (question.correct_answer && 
+                                            (option.text === question.correct_answer || 
+                                             JSON.stringify(option) === JSON.stringify(question.correct_answer)));
+                          
+                          return (
+                            <div key={optIndex} className={`flex items-center ${
+                              isCorrect ? 'text-green-600' : 'text-gray-600'
+                            }`}>
+                              <span className="w-6">{String.fromCharCode(65 + optIndex)}.</span>
+                              <span>{option.text}</span>
+                              {isCorrect && (
+                                <span className="ml-2 text-xs font-medium">(Correct Answer)</span>
+                              )}
+                            </div>
+                          );
+                        }
+                        // Other object types - display as JSON string as fallback
+                        else {
+                          return (
+                            <div key={optIndex} className="flex items-center text-gray-600">
+                              <span className="w-6">{String.fromCharCode(65 + optIndex)}.</span>
+                              <span>{JSON.stringify(option)}</span>
+                            </div>
+                          );
+                        }
+                      }
+                      // Handle primitive option values (string, number, etc.)
+                      else {
+                        const isCorrect = option === question.correct_answer;
+                        return (
+                          <div key={optIndex} className={`flex items-center ${
+                            isCorrect ? 'text-green-600' : 'text-gray-600'
+                          }`}>
+                            <span className="w-6">{String.fromCharCode(65 + optIndex)}.</span>
+                            <span>{option}</span>
+                            {isCorrect && (
+                              <span className="ml-2 text-xs font-medium">(Correct Answer)</span>
+                            )}
+                          </div>
+                        );
+                      }
+                    })}
                   </div>
                 </div>
               ))}
@@ -136,7 +200,7 @@ const QuizView = () => {
                 Back to Dashboard
               </button>
               <button
-                onClick={() => navigate(`/quiz/${quiz.access_code}`)}
+                onClick={() => navigate(`/quiz/${accessCode}`)}
                 className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-primary hover:bg-primary/90"
               >
                 Take Quiz

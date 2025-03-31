@@ -11,12 +11,14 @@ import {
 import { useNavigate } from 'react-router-dom'
 import { useQuiz } from '../hooks/useQuiz'
 import { useAuth } from '../context/AuthContext'
+import CreateQuizModal from '../components/CreateQuizModal'
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const [layoutType, setLayoutType] = React.useState('grid') // 'grid' or 'list'
   const [searchQuery, setSearchQuery] = React.useState('')
+  const [isCreateModalOpen, setIsCreateModalOpen] = React.useState(false)
 
   const {
     quizzes,
@@ -45,7 +47,7 @@ export default function Dashboard() {
   return (
     <DashboardLayout>
       {/* Header section with title and create button */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="px-4 sm:px-6 md:px-container-padding flex items-center justify-between mb-8">
         <div>
           <h2 className="text-xl font-semibold text-slate-900">
             Welcome to TestCraft.ai
@@ -55,7 +57,7 @@ export default function Dashboard() {
           </p>
         </div>
         <button 
-          onClick={() => navigate('/create-quiz')}
+          onClick={() => setIsCreateModalOpen(true)}
           className="h-10 px-4 bg-[#06545E] text-white rounded-full font-medium transition-colors hover:bg-[#06545E]/90 shadow-sm flex items-center gap-2 text-sm"
         >
           <PlusIcon className="w-4 h-4" />
@@ -93,7 +95,7 @@ export default function Dashboard() {
             </Tab>
           </Tab.List>
 
-          <Tab.Panels className="mt-6">
+          <Tab.Panels className="mt-6 px-4 sm:px-6 md:px-container-padding">
             <Tab.Panel>
               {/* Search and layout controls */}
               <div className="flex items-center gap-4 mb-6">
@@ -107,7 +109,7 @@ export default function Dashboard() {
                   />
                   <MagnifyingGlassIcon className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                 </div>
-                <div className="flex items-center gap-2 border border-slate-200 rounded-lg p-1">
+                <div className="flex items-center gap-2 ">
                   <button
                     onClick={() => setLayoutType('grid')}
                     className={`p-2 rounded ${
@@ -162,7 +164,7 @@ export default function Dashboard() {
                     Get started by creating your first quiz with AI assistance
                   </p>
                   <button 
-                    onClick={() => navigate('/create-quiz')}
+                    onClick={() => setIsCreateModalOpen(true)}
                     className="h-10 px-4 bg-[#06545E] text-white rounded-full font-medium transition-colors hover:bg-[#06545E]/90 flex items-center gap-2 text-sm mx-auto"
                   >
                     <PlusIcon className="w-4 h-4" />
@@ -249,7 +251,7 @@ export default function Dashboard() {
                     Get started by creating your first quiz with AI assistance
                   </p>
                   <button 
-                    onClick={() => navigate('/create-quiz')}
+                    onClick={() => setIsCreateModalOpen(true)}
                     className="h-10 px-4 bg-[#06545E] text-white rounded-full font-medium transition-colors hover:bg-[#06545E]/90 flex items-center gap-2 text-sm mx-auto"
                   >
                     <PlusIcon className="w-4 h-4" />
@@ -315,6 +317,12 @@ export default function Dashboard() {
           </Tab.Panels>
         </Tab.Group>
       </div>
+
+      {/* Create Quiz Modal */}
+      <CreateQuizModal 
+        isOpen={isCreateModalOpen} 
+        onClose={() => setIsCreateModalOpen(false)} 
+      />
     </DashboardLayout>
   )
 }

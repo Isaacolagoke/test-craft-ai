@@ -11,11 +11,13 @@ import {
 import { BellAlertIcon } from '@heroicons/react/24/solid'
 import logoText from '../assets/logo-text.svg'
 import axios from 'axios'
+import { useAuth } from '../context/AuthContext'
 
 export default function DashboardLayout({ children }) {
   const [notifications, setNotifications] = React.useState([])
   const [unreadCount, setUnreadCount] = React.useState(0)
   const [loading, setLoading] = React.useState(true)
+  const { logout } = useAuth()
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -215,6 +217,7 @@ export default function DashboardLayout({ children }) {
                         <Menu.Item>
                           {({ active }) => (
                             <button
+                              onClick={logout}
                               className={`${
                                 active ? 'bg-slate-50' : ''
                               } w-full text-left px-4 py-2 text-sm text-red-600 flex items-center gap-2`}
@@ -235,7 +238,7 @@ export default function DashboardLayout({ children }) {
 
         {/* Main content */}
         <main className="pt-16">
-          <div className="px-4 sm:px-6 md:px-container-padding py-8">
+          <div className=" py-8">
             {children}
           </div>
         </main>

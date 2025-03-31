@@ -8,7 +8,11 @@ import {
   EyeIcon, 
   PlayIcon, 
   PauseIcon, 
-  TrashIcon 
+  TrashIcon,
+  ClockIcon,
+  BookOpenIcon,
+  AcademicCapIcon,
+  QuestionMarkCircleIcon
 } from '@heroicons/react/24/outline';
 import DeleteQuizModal from './DeleteQuizModal';
 
@@ -20,6 +24,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
     title,
     description,
     image_url,
+    imageUrl,
     status,
     access_code,
     created_at,
@@ -38,18 +43,50 @@ const QuizCard = ({ quiz, onStatusChange }) => {
 
   // Get formatted settings values
   const getDuration = () => {
-    if (!settings?.duration) return 'Duration not set';
-    return `${settings.duration} minutes`;
+    // Debug what we actually have for duration
+    console.log('Duration data for quiz ID ' + id + ':', {
+      settingsDuration: settings?.duration,
+      settingsTimeUnit: settings?.timeUnit,
+      quizTimeLimit: quiz.timeLimit,
+      quizTimeUnit: quiz.timeUnit,
+      accessCode: access_code,
+      rawSettings: settings
+    });
+    
+    if (settings?.duration) return `${settings.duration} ${settings.timeUnit || 'minutes'}`;
+    if (quiz.timeLimit) return `${quiz.timeLimit} ${quiz.timeUnit || 'minutes'}`;
+    return 'Duration not set';
   };
 
   const getDifficulty = () => {
-    if (!settings?.complexity) return 'Difficulty not set';
-    return capitalizeFirstLetter(settings.complexity);
+    if (settings?.complexity) return capitalizeFirstLetter(settings.complexity);
+    if (quiz.complexity) return capitalizeFirstLetter(quiz.complexity);
+    return 'Difficulty not set';
   };
 
   const getCategory = () => {
-    if (!category) return 'Subject not set';
-    return capitalizeFirstLetter(category);
+    if (settings?.category) return settings.category;
+    if (category || quiz.category) return category || quiz.category;
+    return 'Subject not set';
+  };
+
+  // Get image URL from multiple possible sources
+  const getImageUrl = () => {
+    // Check all possible image sources including settings
+    const imageUrlToUse = quiz.image_url || 
+                 quiz.imageUrl || 
+                 quiz.image || 
+                 (settings && (settings.imageUrl || settings.image_url)) || 
+                 defaultImage;
+    
+    // If it's a relative URL that starts with /uploads, make it absolute
+    if (imageUrlToUse && typeof imageUrlToUse === 'string' && 
+        (imageUrlToUse.startsWith('/uploads') || imageUrlToUse.startsWith('uploads'))) {
+      const fixedPath = imageUrlToUse.startsWith('/') ? imageUrlToUse : `/${imageUrlToUse}`;
+      return `http://localhost:3001${fixedPath}`;
+    }
+    
+    return imageUrlToUse || defaultImage;
   };
 
   // Handle status change
@@ -60,6 +97,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
         const response = await quizzes.publish(id);
         if (response.data?.success) {
           toast.success('Quiz published successfully');
+          if (onStatusChange) onStatusChange({ ...quiz, status: 'published' });
         } else {
           throw new Error('Failed to publish quiz');
         }
@@ -105,135 +143,155 @@ const QuizCard = ({ quiz, onStatusChange }) => {
     }
   };
 
-  const imageUrl = image_url ? `http://localhost:3001${image_url}` : defaultImage;
-
   return (
     <>
-      <div className="bg-slate-50 rounded-lg overflow-hidden">
+      <div className="bg-white rounded-lg overflow-hidden border border-gray-200">
+        {/* Card Header - Image and Menu */}
         <div className="relative">
-          <img
-            src={imageUrl}
-            alt={title}
-            className="w-full h-48 object-cover"
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.src = defaultImage;
-            }}
-          />
-          <div className="absolute top-4 right-4">
-            <Menu as="div" className="relative inline-block text-left">
-              <Menu.Button className="p-2 bg-slate-50 rounded-full shadow-sm hover:bg-white transition-colors">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                </svg>
-              </Menu.Button>
-              <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right divide-y divide-gray-100 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none">
-                <div className="px-1 py-1">
-                  <Menu.Item>
-                    {({ active }) => (
-                      <button
-                        onClick={() => navigate(`/quiz/${id}/view`)}
-                        className={`${
-                          active ? 'bg-gray-100' : ''
-                        } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
-                      >
-                        <EyeIcon className="w-5 h-5 mr-2" />
-                        View Quiz
-                      </button>
-                    )}
-                  </Menu.Item>
-                  {status === 'published' ? (
-                    <Menu.Item disabled={isLoading}>
+          <div className="aspect-[16/9] overflow-hidden rounded-t-xl">
+            <img 
+              src={getImageUrl()} 
+              alt={title} 
+              className="w-full h-full object-cover"
+              onError={(e) => {
+                console.error('Failed to load image:', getImageUrl());
+                e.target.src = defaultImage;
+              }}
+            />
+            
+            {/* Status Badge - Overlay on image */}
+            <div className="absolute top-3 left-3">
+              {status === 'published' ? (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-primary border border-gray-200">
+                  <span className="relative flex h-2 w-2 mr-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/60 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                  </span>
+                  Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
+                  Draft
+                </span>
+              )}
+            </div>
+            
+            {/* Options Menu */}
+            <div className="absolute top-3 right-3">
+              <Menu as="div" className="relative inline-block text-left">
+                <Menu.Button className="inline-flex items-center px-2 py-1 bg-white rounded-full shadow-sm hover:bg-gray-50 transition-colors">
+                  <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                  </svg>
+                </Menu.Button>
+                <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right divide-y divide-gray-100 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                  <div className="px-1 py-1">
+                    <Menu.Item>
                       {({ active }) => (
-                        <button
-                          onClick={() => handleStatusChange('pause')}
+                        <Link
+                          to={status === 'published' && (access_code || settings?.accessCode) ? `/quiz/${access_code || settings?.accessCode}/view` : '#'}
                           className={`${
                             active ? 'bg-gray-100' : ''
                           } group flex w-full items-center rounded-md px-2 py-2 text-sm ${
-                            isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                            (!access_code && !settings?.accessCode) || status !== 'published' ? 'text-gray-400 cursor-not-allowed' : ''
                           }`}
+                          onClick={(e) => {
+                            if ((!access_code && !settings?.accessCode) || status !== 'published') {
+                              e.preventDefault();
+                              toast.error('Quiz not available for viewing');
+                            } else {
+                              console.log('Navigating to quiz view with code:', access_code || settings?.accessCode);
+                            }
+                          }}
                         >
-                          <PauseIcon className="w-5 h-5 mr-2" />
-                          {isLoading ? 'Pausing...' : 'Pause Quiz'}
-                        </button>
+                          <EyeIcon className="w-5 h-5 mr-2" />
+                          View Quiz
+                        </Link>
                       )}
                     </Menu.Item>
-                  ) : (
+                    {status === 'published' ? (
+                      <Menu.Item disabled={isLoading}>
+                        {({ active }) => (
+                          <button
+                            onClick={() => handleStatusChange('pause')}
+                            className={`${
+                              active ? 'bg-gray-100' : ''
+                            } group flex w-full items-center rounded-md px-2 py-2 text-sm ${
+                              isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                          >
+                            <PauseIcon className="w-5 h-5 mr-2" />
+                            {isLoading ? 'Pausing...' : 'Pause Quiz'}
+                          </button>
+                        )}
+                      </Menu.Item>
+                    ) : (
+                      <Menu.Item disabled={isLoading}>
+                        {({ active }) => (
+                          <button
+                            onClick={() => handleStatusChange('publish')}
+                            className={`${
+                              active ? 'bg-gray-100' : ''
+                            } group flex w-full items-center rounded-md px-2 py-2 text-sm ${
+                              isLoading ? 'opacity-50 cursor-not-allowed' : ''
+                            }`}
+                          >
+                            <PlayIcon className="w-5 h-5 mr-2" />
+                            {isLoading ? 'Publishing...' : 'Publish Quiz'}
+                          </button>
+                        )}
+                      </Menu.Item>
+                    )}
                     <Menu.Item disabled={isLoading}>
                       {({ active }) => (
                         <button
-                          onClick={() => handleStatusChange('publish')}
+                          onClick={() => setIsDeleteModalOpen(true)}
                           className={`${
                             active ? 'bg-gray-100' : ''
-                          } group flex w-full items-center rounded-md px-2 py-2 text-sm ${
+                          } group flex w-full items-center rounded-md px-2 py-2 text-sm text-red-600 ${
                             isLoading ? 'opacity-50 cursor-not-allowed' : ''
                           }`}
                         >
-                          <PlayIcon className="w-5 h-5 mr-2" />
-                          {isLoading ? 'Publishing...' : 'Publish Quiz'}
+                          <TrashIcon className="w-5 h-5 mr-2" />
+                          Delete Quiz
                         </button>
                       )}
                     </Menu.Item>
-                  )}
-                  <Menu.Item disabled={isLoading}>
-                    {({ active }) => (
-                      <button
-                        onClick={() => setIsDeleteModalOpen(true)}
-                        className={`${
-                          active ? 'bg-gray-100' : ''
-                        } group flex w-full items-center rounded-md px-2 py-2 text-sm text-red-600 ${
-                          isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                        }`}
-                      >
-                        <TrashIcon className="w-5 h-5 mr-2" />
-                        Delete Quiz
-                      </button>
-                    )}
-                  </Menu.Item>
-                </div>
-              </Menu.Items>
-            </Menu>
+                  </div>
+                </Menu.Items>
+              </Menu>
+            </div>
           </div>
         </div>
         
+        {/* Card Content */}
         <div className="p-4">
-          <h2 className="text-lg font-semibold mb-2 line-clamp-2 leading-[1.2] first-letter:capitalize">{capitalizeFirstLetter(title)}</h2>
-          <p className="text-gray-600 text-sm mb-2 first-letter:capitalize">{capitalizeFirstLetter(description)}</p>
+          <h2 className="text-lg font-semibold mb-1 line-clamp-1 leading-tight text-gray-900">{capitalizeFirstLetter(title)}</h2>
+          <p className="text-gray-600 text-sm mb-4 line-clamp-2 leading-snug">{capitalizeFirstLetter(description)}</p>
           
-          <div className="mb-4">
-            {status === 'published' ? (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-primary">
-                Active • Receiving Responses
-              </span>
-            ) : (
-              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                Draft
-              </span>
-            )}
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <span className="text-gray-600 block">Subject</span>
-              <span className={`font-medium ${!category ? 'text-gray-500' : 'text-gray-900'}`}>
+          {/* Quiz Stats */}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="flex items-center">
+              <BookOpenIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+              <span className={`text-sm ${!getCategory() || getCategory() === 'Subject not set' ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
                 {getCategory()}
               </span>
             </div>
-            <div>
-              <span className="text-gray-600 block">Questions</span>
-              <span className="font-medium text-gray-900">
+            <div className="flex items-center">
+              <QuestionMarkCircleIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+              <span className="text-sm text-gray-800 font-medium">
                 {questions.length} Questions
               </span>
             </div>
-            <div>
-              <span className="text-gray-600 block">Duration</span>
-              <span className={`font-medium ${!settings?.duration ? 'text-gray-500' : 'text-gray-900'}`}>
+            <div className="flex items-center">
+              <ClockIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+              <span className={`text-sm ${!settings?.duration ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
                 {getDuration()}
               </span>
             </div>
-            <div>
-              <span className="text-gray-600 block">Difficulty</span>
-              <span className={`font-medium ${!settings?.complexity ? 'text-gray-500' : 'text-gray-900'}`}>
+            <div className="flex items-center">
+              <AcademicCapIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+              <span className={`text-sm ${!settings?.complexity ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
                 {getDifficulty()}
               </span>
             </div>

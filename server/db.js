@@ -30,6 +30,7 @@ const db = new sqlite3.Database(dbPath, (err) => {
         description TEXT,
         status TEXT DEFAULT 'draft',
         settings TEXT,
+        image_url TEXT,
         is_accepting_responses INTEGER DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         published_at DATETIME,

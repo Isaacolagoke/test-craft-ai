@@ -1,16 +1,43 @@
 import React from 'react'
 
 export default function QuizPreview({ quiz }) {
+  // Function to get image from multiple possible sources
+  const getImageUrl = () => {
+    // Check all possible image sources including settings
+    const imageUrlToUse = quiz.image_url || 
+                   quiz.imageUrl || 
+                   quiz.image || 
+                   (quiz.settings && quiz.settings.imageUrl) || 
+                   null;
+    
+    // If it's a relative URL that starts with /uploads, make it absolute
+    if (imageUrlToUse && typeof imageUrlToUse === 'string' && imageUrlToUse.startsWith('/uploads')) {
+      return `http://localhost:3001${imageUrlToUse}`;
+    }
+    
+    // Add console log to debug
+    console.log('Preview Image URL used:', imageUrlToUse);
+    return imageUrlToUse;
+  };
+
+  // Get quiz settings, handling both direct properties and nested settings
+  const settings = quiz.settings || {};
+  
   return (
     <div className="space-y-8">
       {/* Quiz Header */}
       <div className="space-y-4">
-        {(quiz.imageUrl || quiz.image) && (
+        {getImageUrl() && (
           <div className="aspect-video w-full rounded-2xl overflow-hidden">
             <img 
-              src={quiz.imageUrl || quiz.image} 
+              src={getImageUrl()} 
               alt={quiz.title} 
               className="w-full h-full object-cover"
+              onError={(e) => {
+                console.error("Failed to load image:", getImageUrl());
+                // Provide a fallback image instead of hiding
+                e.target.src = 'https://placehold.co/600x400?text=Quiz+Image';
+              }}
             />
           </div>
         )}
@@ -21,11 +48,11 @@ export default function QuizPreview({ quiz }) {
         <div className="flex flex-wrap gap-4 text-sm text-slate-600">
           <div className="flex items-center gap-2">
             <span className="font-medium">Duration:</span>
-            <span>{quiz.timeLimit} {quiz.timeUnit}</span>
+            <span>{settings.duration || quiz.timeLimit} {settings.timeUnit || quiz.timeUnit || 'minutes'}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="font-medium">Difficulty:</span>
-            <span className="capitalize">{quiz.complexity}</span>
+            <span className="capitalize">{settings.complexity || quiz.complexity || 'Not set'}</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="font-medium">Category:</span>

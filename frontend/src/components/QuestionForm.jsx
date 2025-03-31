@@ -514,25 +514,37 @@ export default function QuestionForm({
             </div>
             <div className="space-y-3">
               <h4 className="text-base font-medium text-slate-900">Answers for Blanks</h4>
-              {getBlankPositions(question.text).map((_, index) => (
-                <div key={index} className="flex items-center gap-3">
-                  <span className="text-sm font-medium text-slate-600 min-w-[80px]">
-                    Blank {index + 1}:
-                  </span>
-                  <input
-                    type="text"
-                    value={question.correctAnswer[index] || ''}
-                    onChange={(e) => {
-                      const newAnswers = [...question.correctAnswer]
-                      newAnswers[index] = e.target.value
-                      onChange({ ...question, correctAnswer: newAnswers })
-                    }}
-                    placeholder={`Answer for blank ${index + 1}`}
-                    className="flex-1 px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#06545E] focus:border-transparent"
-                    required
-                  />
+              {getBlankPositions(question.content || '').length > 0 ? (
+                getBlankPositions(question.content || '').map((_, index) => (
+                  <div key={index} className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-slate-600 min-w-[80px]">
+                      Blank {index + 1}:
+                    </span>
+                    <input
+                      type="text"
+                      value={question.options && question.options[index] ? question.options[index] : ''}
+                      onChange={(e) => {
+                        const newOptions = [...(question.options || [])]
+                        newOptions[index] = e.target.value
+                        const newAnswers = [...(question.correctAnswer || [])]
+                        newAnswers[index] = e.target.value
+                        onChange({ 
+                          ...question, 
+                          options: newOptions,
+                          correctAnswer: newAnswers 
+                        })
+                      }}
+                      placeholder={`Answer for blank ${index + 1}`}
+                      className="flex-1 px-4 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#06545E] focus:border-transparent"
+                      required
+                    />
+                  </div>
+                ))
+              ) : (
+                <div className="bg-amber-50 text-amber-700 p-3 rounded-md border border-amber-200">
+                  <p>No blank spaces found. Add underscores (_) in your question text to create blanks.</p>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )}
