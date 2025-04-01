@@ -3,6 +3,7 @@ services:
   - type: web
     name: testcraft-api
     env: node
+    plan: free
     buildCommand: npm install
     startCommand: npm start
     envVars:
@@ -17,6 +18,7 @@ services:
   - type: web
     name: testcraft-web
     env: static
+    plan: free
     buildCommand: cd frontend && npm install && npm run build
     staticPublishPath: ./frontend/dist
     routes:
