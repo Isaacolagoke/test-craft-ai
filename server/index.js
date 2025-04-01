@@ -24,8 +24,9 @@ const port = PORT;
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? [
-        'https://test-craft-ai.onrender.com', // Update with your actual frontend URL
-        'https://testcraft-ai.vercel.app',    // Add alternative domains if needed
+        'https://testcraft-web.onrender.com',     // Your actual deployed frontend URL
+        'https://testcraft-web.onrender.app',     // Alternative Render domain pattern
+        'https://testcraft-ai.vercel.app'         // In case you deploy to Vercel later
       ] 
     : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
