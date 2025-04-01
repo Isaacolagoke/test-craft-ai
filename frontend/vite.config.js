@@ -15,5 +15,15 @@ export default defineConfig({
   },
   css: {
     postcss: './postcss.config.js'
+  },
+  build: {
+    outDir: 'dist',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom']
+        }
+      }
+    }
   }
 })
