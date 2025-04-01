@@ -6,7 +6,9 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server/index.js",
-    "dev": "nodemon server/index.js"
+    "dev": "nodemon server/index.js",
+    "build": "cd frontend && npm install && npm run build",
+    "render-postbuild": "mkdir -p server/uploads/quiz-images"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +20,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.18.3",
     "jsonwebtoken": "^9.0.2",
+    "node-fetch": "^2.7.0",
     "sqlite3": "^5.1.7"
   },
   "devDependencies": {

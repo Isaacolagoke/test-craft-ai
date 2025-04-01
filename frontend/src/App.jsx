@@ -8,6 +8,7 @@ import CreateQuiz from './pages/CreateQuiz'
 import TakeQuiz from './pages/TakeQuiz'
 import QuizResults from './pages/QuizResults'
 import QuizView from './pages/QuizView';
+import QuizSubmissions from './pages/QuizSubmissions';
 import PrivateRoute from './components/PrivateRoute'
 import NotFound from './pages/NotFound'
 
@@ -40,6 +41,7 @@ function App() {
         <Route path="/quiz/:accessCode/view" element={<PrivateRoute><QuizView /></PrivateRoute>} />
         <Route path="/quiz/:accessCode" element={<TakeQuiz />} />
         <Route path="/quiz/:accessCode/results" element={<PrivateRoute><QuizResults /></PrivateRoute>} />
+        <Route path="/quiz/:id/submissions" element={<PrivateRoute><QuizSubmissions /></PrivateRoute>} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

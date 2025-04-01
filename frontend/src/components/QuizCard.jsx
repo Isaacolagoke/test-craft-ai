@@ -242,15 +242,35 @@ const QuizCard = ({ quiz, onStatusChange }) => {
                         )}
                       </Menu.Item>
                     )}
-                    <Menu.Item disabled={isLoading}>
+                    {/* View Submissions (Only for published quizzes) */}
+                    <Menu.Item>
+                      {({ active }) => (
+                        <Link
+                          to={status === 'published' ? `/quiz/${id}/submissions` : '#'}
+                          className={`${
+                            active ? 'bg-gray-100' : ''
+                          } group flex w-full items-center rounded-md px-2 py-2 text-sm ${
+                            status !== 'published' ? 'text-gray-400 cursor-not-allowed' : ''
+                          }`}
+                          onClick={(e) => {
+                            if (status !== 'published') {
+                              e.preventDefault();
+                              toast.error('No submissions available for unpublished quizzes');
+                            }
+                          }}
+                        >
+                          <BookOpenIcon className="w-5 h-5 mr-2" />
+                          View Submissions
+                        </Link>
+                      )}
+                    </Menu.Item>
+                    <Menu.Item>
                       {({ active }) => (
                         <button
                           onClick={() => setIsDeleteModalOpen(true)}
                           className={`${
-                            active ? 'bg-gray-100' : ''
-                          } group flex w-full items-center rounded-md px-2 py-2 text-sm text-red-600 ${
-                            isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
+                            active ? 'bg-red-50' : ''
+                          } group flex w-full items-center rounded-md px-2 py-2 text-sm text-red-600`}
                         >
                           <TrashIcon className="w-5 h-5 mr-2" />
                           Delete Quiz

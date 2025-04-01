@@ -1,7 +1,23 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const fs = require('fs');
 
-const dbPath = path.join(__dirname, 'database.sqlite');
+// Use an absolute path for the database that works in both development and production
+const dbPath = path.resolve(__dirname, 'database.sqlite');
+
+// Ensure uploads directory exists
+const uploadsDir = path.join(__dirname, 'uploads');
+const quizImagesDir = path.join(uploadsDir, 'quiz-images');
+
+if (!fs.existsSync(uploadsDir)) {
+  fs.mkdirSync(uploadsDir, { recursive: true });
+  console.log('Created uploads directory');
+}
+
+if (!fs.existsSync(quizImagesDir)) {
+  fs.mkdirSync(quizImagesDir, { recursive: true });
+  console.log('Created quiz-images directory');
+}
 
 // Create a new database connection
 const db = new sqlite3.Database(dbPath, (err) => {

@@ -14,15 +14,23 @@ const statisticsRoutes = require('./routes/statistics');
 const db = require('./db');
 
 const app = express();
-const port = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
 
-// Enable CORS for frontend
+// Configure PORT for deployment flexibility
+const port = PORT;
+
+// Enable CORS for production
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-    credentials: true
+  origin: process.env.NODE_ENV === 'production' 
+    ? [
+        'https://test-craft-ai.onrender.com', // Update with your actual frontend URL
+        'https://testcraft-ai.vercel.app',    // Add alternative domains if needed
+      ] 
+    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 
 // Global middleware
@@ -254,6 +262,6 @@ app.get('/api/auth/me', authenticateToken, (req, res) => {
 });
 
 // Start server
-app.listen(port, () => {
-  console.log(`Server is running on port ${port}`);
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });

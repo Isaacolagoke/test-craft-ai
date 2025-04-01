@@ -1,0 +1,31 @@
+services:
+  # Backend API service
+  - type: web
+    name: testcraft-api
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: JWT_SECRET
+        generateValue: true
+      - key: PORT
+        value: 10000
+  
+  # Frontend web service
+  - type: web
+    name: testcraft-web
+    env: static
+    buildCommand: cd frontend && npm install && npm run build
+    staticPublishPath: ./frontend/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_URL
+        fromService:
+          name: testcraft-api
+          type: web
+          property: url
