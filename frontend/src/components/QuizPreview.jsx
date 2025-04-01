@@ -1,23 +1,12 @@
-import React from 'react'
+import React from 'react';
+import { getImageUrl } from '../utils/apiUrl';
 
 export default function QuizPreview({ quiz }) {
   // Function to get image from multiple possible sources
-  const getImageUrl = () => {
-    // Check all possible image sources including settings
-    const imageUrlToUse = quiz.image_url || 
-                   quiz.imageUrl || 
-                   quiz.image || 
-                   (quiz.settings && quiz.settings.imageUrl) || 
-                   null;
+  const formatImageUrl = (imageUrl) => {
+    if (!imageUrl) return null;
     
-    // If it's a relative URL that starts with /uploads, make it absolute
-    if (imageUrlToUse && typeof imageUrlToUse === 'string' && imageUrlToUse.startsWith('/uploads')) {
-      return `http://localhost:3001${imageUrlToUse}`;
-    }
-    
-    // Add console log to debug
-    console.log('Preview Image URL used:', imageUrlToUse);
-    return imageUrlToUse;
+    return getImageUrl(imageUrl);
   };
 
   // Get quiz settings, handling both direct properties and nested settings
@@ -27,14 +16,14 @@ export default function QuizPreview({ quiz }) {
     <div className="space-y-8">
       {/* Quiz Header */}
       <div className="space-y-4">
-        {getImageUrl() && (
+        {formatImageUrl(quiz.image_url || quiz.imageUrl || quiz.image || (quiz.settings && quiz.settings.imageUrl)) && (
           <div className="aspect-video w-full rounded-2xl overflow-hidden">
             <img 
-              src={getImageUrl()} 
+              src={formatImageUrl(quiz.image_url || quiz.imageUrl || quiz.image || (quiz.settings && quiz.settings.imageUrl))} 
               alt={quiz.title} 
               className="w-full h-full object-cover"
               onError={(e) => {
-                console.error("Failed to load image:", getImageUrl());
+                console.error("Failed to load image:", formatImageUrl(quiz.image_url || quiz.imageUrl || quiz.image || (quiz.settings && quiz.settings.imageUrl)));
                 // Provide a fallback image instead of hiding
                 e.target.src = 'https://placehold.co/600x400?text=Quiz+Image';
               }}
@@ -79,10 +68,10 @@ export default function QuizPreview({ quiz }) {
                 <div className="flex-1">
                   <p className="text-slate-900">{question.content}</p>
                 </div>
-                {question.mediaUrl && (
+                {formatImageUrl(question.mediaUrl) && (
                   <div className="w-48 h-48 rounded-lg overflow-hidden flex-shrink-0">
                     <img 
-                      src={question.mediaUrl} 
+                      src={formatImageUrl(question.mediaUrl)} 
                       alt="Question media" 
                       className="w-full h-full object-cover"
                     />
@@ -106,10 +95,10 @@ export default function QuizPreview({ quiz }) {
                           (typeof option === 'object' ? option.isCorrect : question.correctAnswer === optionIndex) ? 'font-medium' : ''
                         }`}>{typeof option === 'object' ? option.text : option}</span>
                       </div>
-                      {option.mediaUrl && (
+                      {formatImageUrl(option.mediaUrl) && (
                         <div className="w-24 h-24 rounded-lg overflow-hidden flex-shrink-0">
                           <img 
-                            src={option.mediaUrl} 
+                            src={formatImageUrl(option.mediaUrl)} 
                             alt={`Option ${optionIndex + 1} media`} 
                             className="w-full h-full object-cover"
                           />

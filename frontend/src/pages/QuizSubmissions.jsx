@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import DashboardLayout from '../components/DashboardLayout'
 import { toast } from 'react-hot-toast'
+import { getApiUrl } from '../utils/apiUrl'
 import { ChevronDownIcon, ChevronUpIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/20/solid'
 
 export default function QuizSubmissions() {
@@ -21,7 +22,7 @@ export default function QuizSubmissions() {
         throw new Error('No authentication token found')
       }
 
-      const response = await fetch(`http://localhost:3001/api/quizzes/${id}/submissions`, {
+      const response = await fetch(getApiUrl(`/api/quizzes/${id}/submissions`), {
         headers: {
           'Authorization': `Bearer ${token}`
         }

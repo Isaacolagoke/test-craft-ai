@@ -19,6 +19,7 @@ import logoAI from '../assets/logoai.svg'
 import QuizPreview from '../components/QuizPreview'
 import { Switch } from '@headlessui/react'
 import QuizPublishSuccess from '../components/QuizPublishSuccess';
+import { getApiUrl } from '../utils/apiUrl';
 
 const QUESTION_TYPES = [
   { id: 'multiple_choice', label: 'Multiple Choice' },
@@ -218,7 +219,7 @@ export default function CreateQuiz() {
     formData.append('image', file);
 
     try {
-      const response = await fetch('http://localhost:3001/api/quizzes/upload-image', {
+      const response = await fetch(getApiUrl('/api/quizzes/upload-image'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -261,7 +262,7 @@ export default function CreateQuiz() {
           throw new Error('No authentication token found');
         }
 
-        const response = await fetch('http://localhost:3001/api/quizzes/upload-image', {
+        const response = await fetch(getApiUrl('/api/quizzes/upload-image'), {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -449,7 +450,7 @@ export default function CreateQuiz() {
         questions: mappedQuestions // Use mapped questions with correct field names
       };
 
-      const response = await fetch('http://localhost:3001/api/quizzes', {
+      const response = await fetch(getApiUrl('/api/quizzes'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -523,7 +524,7 @@ export default function CreateQuiz() {
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
       try {
-        const response = await fetch(`http://localhost:3001/api/quizzes/${quizData.id}/publish`, {
+        const response = await fetch(getApiUrl(`/api/quizzes/${quizData.id}/publish`), {
           method: 'PUT', // Changed from POST to PUT to match the server route
           headers: {
             'Content-Type': 'application/json',
@@ -674,7 +675,7 @@ export default function CreateQuiz() {
         questionTypes: aiSupportedTypes
       });
 
-      const response = await fetch('http://localhost:3001/api/quizzes/generate', {
+      const response = await fetch(getApiUrl('/api/quizzes/generate'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

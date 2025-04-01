@@ -1,5 +1,6 @@
 import React from 'react';
 import { useLocation, useParams, Link } from 'react-router-dom';
+import { getApiUrl, getImageUrl } from '../utils/apiUrl';
 
 const QuizResults = () => {
   const location = useLocation();
@@ -12,7 +13,7 @@ const QuizResults = () => {
     const fetchQuiz = async () => {
       try {
         const token = localStorage.getItem('token');
-        const response = await fetch(`http://localhost:3001/api/quizzes/access/${accessCode}`, {
+        const response = await fetch(getApiUrl(`/api/quizzes/access/${accessCode}`), {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -57,7 +58,7 @@ const QuizResults = () => {
           <div className="flex items-start">
             {quiz.image_url ? (
               <img
-                src={quiz.image_url}
+                src={getImageUrl(quiz.image_url)}
                 alt={quiz.title}
                 className="w-24 h-24 object-cover rounded-lg mr-6"
                 onError={(e) => {

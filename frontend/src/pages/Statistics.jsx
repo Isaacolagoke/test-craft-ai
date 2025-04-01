@@ -1,6 +1,7 @@
 import React from 'react'
 import DashboardLayout from '../components/DashboardLayout'
 import { toast } from 'react-hot-toast'
+import { getApiUrl } from '../utils/apiUrl'
 
 export default function Statistics() {
   const [loading, setLoading] = React.useState(true)
@@ -17,7 +18,7 @@ export default function Statistics() {
         throw new Error('No authentication token found')
       }
 
-      const response = await fetch('http://localhost:3001/api/statistics', {
+      const response = await fetch(getApiUrl('/api/statistics'), {
         headers: {
           'Authorization': `Bearer ${token}`
         }

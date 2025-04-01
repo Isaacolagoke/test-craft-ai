@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Menu } from '@headlessui/react';
-import defaultImage from "../assets/empty-state.png";
+import { getImageUrl } from '../utils/apiUrl';
 import { quizzes } from '../api';
 import { toast } from 'react-hot-toast';
 import { 
@@ -70,23 +70,29 @@ const QuizCard = ({ quiz, onStatusChange }) => {
     return 'Subject not set';
   };
 
-  // Get image URL from multiple possible sources
-  const getImageUrl = () => {
-    // Check all possible image sources including settings
-    const imageUrlToUse = quiz.image_url || 
-                 quiz.imageUrl || 
-                 quiz.image || 
-                 (settings && (settings.imageUrl || settings.image_url)) || 
-                 defaultImage;
-    
-    // If it's a relative URL that starts with /uploads, make it absolute
-    if (imageUrlToUse && typeof imageUrlToUse === 'string' && 
-        (imageUrlToUse.startsWith('/uploads') || imageUrlToUse.startsWith('uploads'))) {
-      const fixedPath = imageUrlToUse.startsWith('/') ? imageUrlToUse : `/${imageUrlToUse}`;
-      return `http://localhost:3001${fixedPath}`;
+  // Fix image URL rendering with our utility function
+  const getCardImageUrl = () => {
+    // Parse settings if it's a string
+    let settings = quiz.settings;
+    if (typeof settings === 'string' && settings) {
+      try {
+        settings = JSON.parse(settings);
+      } catch (e) {
+        console.error('Error parsing quiz settings:', e);
+        settings = {};
+      }
     }
+
+    const defaultImage = '/uploads/quiz-images/default-quiz.jpg';
     
-    return imageUrlToUse || defaultImage;
+    // Use our new utility for consistent URL formatting
+    const imageUrlToUse = quiz.image_url || 
+                         quiz.imageUrl || 
+                         quiz.image || 
+                         (settings && settings.imageUrl) || 
+                         defaultImage;
+    
+    return getImageUrl(imageUrlToUse);
   };
 
   // Handle status change
@@ -150,12 +156,12 @@ const QuizCard = ({ quiz, onStatusChange }) => {
         <div className="relative">
           <div className="aspect-[16/9] overflow-hidden rounded-t-xl">
             <img 
-              src={getImageUrl()} 
+              src={getCardImageUrl()} 
               alt={title} 
               className="w-full h-full object-cover"
               onError={(e) => {
-                console.error('Failed to load image:', getImageUrl());
-                e.target.src = defaultImage;
+                console.error('Failed to load image:', getCardImageUrl());
+                e.target.src = '/uploads/quiz-images/default-quiz.jpg';
               }}
             />
             

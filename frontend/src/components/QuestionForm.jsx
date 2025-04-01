@@ -1,4 +1,4 @@
-import React, { Fragment } from 'react'
+import React, { Fragment, useState } from 'react'
 import { 
   TrashIcon,
   PlusIcon,
@@ -11,6 +11,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { Switch, Listbox } from '@headlessui/react'
 import cloudUploadIcon from '../assets/cloud-upload.svg'
+import { getApiUrl, getImageUrl } from '../utils/apiUrl'
 
 const QUESTION_TYPES = [
   { id: 'multiple_choice', label: 'Multiple Choice' },
@@ -31,22 +32,28 @@ export default function QuestionForm({
   const [showDelete, setShowDelete] = React.useState(false)
   const [isRequired, setIsRequired] = React.useState(true)
   const [allowMultipleAnswers, setAllowMultipleAnswers] = React.useState(false)
+  const [uploading, setUploading] = React.useState(false)
 
   const handleMediaUpload = async (file, type, index = null) => {
     try {
       const formData = new FormData()
       formData.append('image', file)
 
-      const response = await fetch('http://localhost:3001/api/quizzes/upload-image', {
+      const token = localStorage.getItem('token')
+      if (!token) {
+        throw new Error('No authentication token found')
+      }
+      
+      const response = await fetch(getApiUrl('/api/quizzes/upload-image'), {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${token}`
         },
         body: formData
       })
 
       if (!response.ok) {
-        throw new Error('Failed to upload image')
+        throw new Error(`HTTP error! status: ${response.status}`)
       }
 
       const data = await response.json()
@@ -70,7 +77,7 @@ export default function QuestionForm({
       }
     } catch (error) {
       console.error('Error uploading image:', error)
-      // You might want to show a toast notification here
+      setUploading(false)
     }
   }
 
@@ -323,7 +330,7 @@ export default function QuestionForm({
               {question.mediaUrl ? (
                 <>
                   <img 
-                    src={question.mediaUrl} 
+                    src={getImageUrl(question.mediaUrl)} 
                     alt="Question media" 
                     className="w-full h-full object-cover rounded-lg"
                   />

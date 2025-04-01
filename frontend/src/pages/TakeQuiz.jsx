@@ -5,6 +5,7 @@ import logoText from '../assets/logo-text.svg'
 import { CheckIcon, ChevronUpDownIcon, ArrowUpTrayIcon } from '@heroicons/react/20/solid';
 import { Listbox, Transition } from '@headlessui/react';
 import Modal from '../components/Modal';
+import { getApiUrl, getImageUrl } from '../utils/apiUrl';
 
 export default function TakeQuiz() {
   const params = useParams()
@@ -41,7 +42,7 @@ export default function TakeQuiz() {
         }
         
         const token = localStorage.getItem('token')
-        const response = await fetch(`http://localhost:3001/api/quizzes/access/${params.accessCode}`, {
+        const response = await fetch(getApiUrl(`/api/quizzes/access/${params.accessCode}`), {
           headers: {
             'Authorization': `Bearer ${token}`
           }
@@ -147,7 +148,7 @@ export default function TakeQuiz() {
       const token = localStorage.getItem('token')
       
       // Use the share endpoint with accessCode instead of the quiz ID endpoint
-      const response = await fetch(`http://localhost:3001/api/quizzes/submit/${params.accessCode}`, {
+      const response = await fetch(getApiUrl(`/api/quizzes/submit/${params.accessCode}`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -209,7 +210,7 @@ export default function TakeQuiz() {
       console.log("Submitting quiz with responses:", formattedResponses);
       
       const token = localStorage.getItem('token');
-      const url = `http://localhost:3001/api/quizzes/submit/${params.accessCode}`; 
+      const url = getApiUrl(`/api/quizzes/submit/${params.accessCode}`); 
       
       console.log("Submission URL:", url);
       
@@ -338,7 +339,7 @@ export default function TakeQuiz() {
             {(currentQuestion.image || currentQuestion.mediaUrl) && (
               <div className="mb-6">
                 <img 
-                  src={currentQuestion.mediaUrl || currentQuestion.image} 
+                  src={getImageUrl(currentQuestion.mediaUrl || currentQuestion.image)} 
                   alt="Question" 
                   className="max-w-full rounded-lg"
                   onError={(e) => {
@@ -1104,7 +1105,7 @@ export default function TakeQuiz() {
             <div className="aspect-video w-full rounded-lg overflow-hidden mb-8 bg-gray-200">
               {quiz.image_url || quiz.imageUrl || (quiz.settings && quiz.settings.imageUrl) ? (
                 <img 
-                  src={quiz.image_url || quiz.imageUrl || quiz.settings.imageUrl} 
+                  src={getImageUrl(quiz.image_url || quiz.imageUrl || quiz.settings.imageUrl)} 
                   alt={quiz.title} 
                   className="w-full h-full object-cover"
                   onError={(e) => {

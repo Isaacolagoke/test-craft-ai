@@ -2,6 +2,7 @@ import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
+import { getApiUrl, getImageUrl } from '../utils/apiUrl';
 
 const QuizView = () => {
   const { accessCode } = useParams();
@@ -15,7 +16,7 @@ const QuizView = () => {
         const token = localStorage.getItem('token');
         console.log('Fetching quiz with access code:', accessCode);
         
-        const response = await fetch(`http://localhost:3001/api/quizzes/access/${accessCode}`, {
+        const response = await fetch(getApiUrl(`/api/quizzes/access/${accessCode}`), {
           headers: {
             'Authorization': `Bearer ${token}`
           }
