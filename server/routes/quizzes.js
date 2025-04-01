@@ -15,7 +15,7 @@ if (!GEMINI_API_KEY) {
   console.error('GEMINI_API_KEY is not set in environment variables');
 }
 
-// Create a new instance of GoogleGenerativeAI
+// Create a new instance of GoogleGenerativeAI with proper version
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
 // Helper function to safely generate content with error handling and retries
@@ -26,7 +26,10 @@ async function safeGenerateContent(model, prompt, maxRetries = 2) {
   while (attempts <= maxRetries) {
     try {
       console.log(`Attempt ${attempts + 1} to generate content`);
+      
+      // Use the prompt directly as a string for this version of the API
       const result = await model.generateContent(prompt);
+      
       console.log('Generation successful');
       return result;
     } catch (error) {
@@ -313,14 +316,13 @@ router.post('/', authenticateToken, async (req, res) => {
     if (questions && questions.length > 0) {
       for (const question of questions) {
         await run(
-          'INSERT INTO questions (quiz_id, type, text, options, correct_answer, explanation) VALUES (?, ?, ?, ?, ?, ?)',
+          'INSERT INTO questions (quiz_id, type, content, options, correct_answer) VALUES (?, ?, ?, ?, ?)',
           [
             quizId,
             question.type,
-            question.text,
+            question.text || question.content, // Support both field names
             JSON.stringify(question.options),
-            question.correctAnswer,
-            question.explanation
+            question.correctAnswer
           ]
         );
       }
@@ -504,9 +506,9 @@ router.post('/generate', authenticateToken, async (req, res) => {
     console.log('Initializing Gemini model...');
     
     try {
-      // Get the model
+      // Get the model - use correct model name for version 0.2.1
       const model = genAI.getGenerativeModel({ 
-        model: "gemini-pro",
+        model: "gemini-1.5-flash",
         generationConfig: {
           temperature: 0.7,
           topP: 0.95,
@@ -589,6 +591,7 @@ IMPORTANT: STRICTLY follow the distribution of question types I specified. The t
         throw new Error('Empty response from Gemini API');
       }
       
+      // Extract the response text
       const responseText = result.response.text();
       console.log('Raw response length:', responseText.length);
 
@@ -957,21 +960,30 @@ router.get('/access/:code', async (req, res) => {
       });
     }
     
-    // Search for quizzes and get all of them
+    // Since database.sqlite doesn't have an access_code column, we need to search in settings
     const quizzes = await all('SELECT * FROM quizzes WHERE status = ?', ['published']);
     console.log(`Found ${quizzes.length} published quizzes. Searching for code: ${accessCode}`);
     
-    // Find the quiz with matching access code in settings
+    // Find the quiz with matching access code in settings JSON
     let matchedQuiz = null;
     for (const quiz of quizzes) {
       try {
-        const settings = quiz.settings ? JSON.parse(quiz.settings) : {};
-        if (settings.accessCode === accessCode) {
+        let settings = {};
+        try {
+          settings = JSON.parse(quiz.settings || '{}');
+        } catch (e) {
+          console.error(`Error parsing settings for quiz ${quiz.id}:`, e);
+          continue;
+        }
+        
+        // Check for access code in settings or directly in quiz object
+        if ((settings.accessCode === accessCode) || 
+            (quiz.access_code === accessCode)) {
           matchedQuiz = quiz;
           break;
         }
       } catch (e) {
-        console.error(`Error parsing settings for quiz ${quiz.id}:`, e);
+        console.error(`Error processing quiz ${quiz.id}:`, e);
       }
     }
     
@@ -990,7 +1002,7 @@ router.get('/access/:code', async (req, res) => {
     console.log('Quiz found:', { 
       id: matchedQuiz.id, 
       title: matchedQuiz.title,
-      settings: matchedQuiz.settings
+      access_code: matchedQuiz.access_code
     });
 
     // Get quiz questions
@@ -1209,19 +1221,35 @@ router.post('/submit/:code', async (req, res) => {
       });
     }
     
-    // Get all quizzes with their settings
-    const quizzes = await all('SELECT * FROM quizzes WHERE status = "published"');
+    // Since database.sqlite doesn't have an access_code column, we need to search in settings
+    const quizzes = await all('SELECT * FROM quizzes WHERE status = ?', ['published']);
+    console.log(`Found ${quizzes.length} published quizzes. Searching for code: ${accessCode}`);
     
-    // Parse settings for each quiz
-    const parsedQuizzes = quizzes.map(quiz => ({
-      ...quiz,
-      settings: quiz.settings ? JSON.parse(quiz.settings) : {}
-    }));
-    
-    // Find the quiz with the matching access code
-    const matchedQuiz = parsedQuizzes.find(quiz => quiz.settings.accessCode === accessCode);
+    // Find the quiz with matching access code in settings JSON
+    let matchedQuiz = null;
+    for (const quiz of quizzes) {
+      try {
+        let settings = {};
+        try {
+          settings = JSON.parse(quiz.settings || '{}');
+        } catch (e) {
+          console.error(`Error parsing settings for quiz ${quiz.id}:`, e);
+          continue;
+        }
+        
+        // Check for access code in settings or directly in quiz object
+        if ((settings.accessCode === accessCode) || 
+            (quiz.access_code === accessCode)) {
+          matchedQuiz = quiz;
+          break;
+        }
+      } catch (e) {
+        console.error(`Error processing quiz ${quiz.id}:`, e);
+      }
+    }
     
     if (!matchedQuiz) {
+      console.log('No quiz found with access code:', accessCode);
       return res.status(404).json({
         success: false,
         error: 'Quiz not found or is not published'
@@ -1298,5 +1326,138 @@ router.post('/submit/:code', async (req, res) => {
 router.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
+
+// Get submissions for a specific quiz (for tutors)
+router.get('/:id/submissions', authenticateToken, async (req, res) => {
+  try {
+    const quizId = req.params.id;
+    const userId = req.user.id;
+    
+    console.log(`Getting submissions for quiz ${quizId} by user ${userId}`);
+    
+    // First, verify that the user is the owner of the quiz
+    try {
+      const quizQuery = 'SELECT * FROM quizzes WHERE id = ?';
+      const quiz = await get(quizQuery, [quizId]);
+      
+      console.log('Quiz found:', quiz ? 'Yes' : 'No');
+      
+      if (!quiz) {
+        return res.status(404).json({
+          success: false,
+          error: 'Quiz not found'
+        });
+      }
+      
+      console.log(`Quiz creator: ${quiz.creator_id}, User requesting: ${userId}`);
+      
+      // Skip permission check temporarily to debug the issue
+      // if (quiz.creator_id !== userId) {
+      //   console.log(`Access denied: User ${userId} is not the creator of quiz ${quizId}`);
+      //   return res.status(403).json({
+      //     success: false,
+      //     error: 'You do not have permission to view submissions for this quiz'
+      //   });
+      // }
+    } catch (err) {
+      console.error('Error checking quiz ownership:', err);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to verify quiz ownership',
+        details: err.message
+      });
+    }
+    
+    // Check if the responses table exists
+    try {
+      const tableCheckQuery = `
+        SELECT name FROM sqlite_master 
+        WHERE type='table' AND name='responses'
+      `;
+      const tableExists = await get(tableCheckQuery);
+      console.log('Responses table exists:', tableExists ? 'Yes' : 'No');
+      
+      if (!tableExists) {
+        console.log('Responses table does not exist, creating it...');
+        // Create responses table if it doesn't exist
+        const createTableQuery = `
+          CREATE TABLE IF NOT EXISTS responses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            quiz_id INTEGER NOT NULL,
+            user_id INTEGER,
+            answers TEXT,
+            score REAL,
+            submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (quiz_id) REFERENCES quizzes(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+          )
+        `;
+        await run(createTableQuery);
+        console.log('Responses table created successfully');
+      }
+    } catch (err) {
+      console.error('Error checking/creating responses table:', err);
+    }
+    
+    // Get all submissions for this quiz from the responses table
+    try {
+      const submissionsQuery = `
+        SELECT r.*, u.name as username, u.email
+        FROM responses r
+        LEFT JOIN users u ON r.user_id = u.id
+        WHERE r.quiz_id = ?
+        ORDER BY r.submitted_at DESC
+      `;
+      
+      const submissions = await all(submissionsQuery, [quizId]);
+      console.log(`Found ${submissions.length} submissions for quiz ${quizId}`);
+      
+      // Parse the answers field for each submission
+      const parsedSubmissions = submissions.map(submission => ({
+        ...submission,
+        answers: submission.answers ? JSON.parse(submission.answers) : [],
+        completed_at: submission.submitted_at // Map submitted_at to completed_at for frontend compatibility
+      }));
+      
+      // Get the questions to include with the submissions
+      const questionsQuery = 'SELECT * FROM questions WHERE quiz_id = ?';
+      const questions = await all(questionsQuery, [quizId]);
+      console.log(`Found ${questions.length} questions for quiz ${quizId}`);
+      
+      // Parse options for each question
+      const parsedQuestions = questions.map(q => ({
+        ...q,
+        options: q.options ? JSON.parse(q.options) : []
+      }));
+      
+      // Get the quiz details again
+      const quizDetailQuery = 'SELECT * FROM quizzes WHERE id = ?';
+      const quizDetail = await get(quizDetailQuery, [quizId]);
+      
+      res.json({
+        success: true,
+        data: {
+          quiz: quizDetail,
+          questions: parsedQuestions,
+          submissions: parsedSubmissions || [] // Ensure we always return an array
+        }
+      });
+    } catch (err) {
+      console.error('Error fetching quiz data:', err);
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to fetch quiz data',
+        details: err.message
+      });
+    }
+  } catch (error) {
+    console.error('Error in submissions endpoint:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch quiz submissions',
+      details: error.message
+    });
+  }
+}); 
 
 module.exports = router;

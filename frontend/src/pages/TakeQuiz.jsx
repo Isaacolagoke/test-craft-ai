@@ -186,18 +186,32 @@ export default function TakeQuiz() {
       setLoading(true);
       
       // Convert responses to the format expected by the API
-      const formattedResponses = Object.keys(responses).map(questionId => ({
-        questionId: parseInt(questionId),
-        response: responses[questionId]
-      }));
+      const formattedResponses = Object.keys(responses).map(questionId => {
+        const questionData = quiz.questions.find(q => q.id == questionId);
+        const response = responses[questionId];
+        
+        // Handle matching question type specifically
+        if (questionData && questionData.type === 'matching') {
+          console.log("Formatting matching question response:", response);
+          // Make sure we're sending the matching response in the expected format
+          return {
+            questionId: parseInt(questionId),
+            response: response || [] // Ensure we always send an array, even if empty
+          };
+        }
+        
+        return {
+          questionId: parseInt(questionId),
+          response: response
+        };
+      });
 
       console.log("Submitting quiz with responses:", formattedResponses);
       
       const token = localStorage.getItem('token');
-      const url = `http://localhost:3001/api/quizzes/submit/${params.accessCode}`; // Fixed the endpoint URL to match server route
+      const url = `http://localhost:3001/api/quizzes/submit/${params.accessCode}`; 
       
       console.log("Submission URL:", url);
-      console.log("Using auth token:", token ? "Token found" : "No token");
       
       // Make API call to submit quiz
       const result = await fetch(url, {
@@ -206,7 +220,10 @@ export default function TakeQuiz() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ responses: formattedResponses }),
+        body: JSON.stringify({ 
+          responses: formattedResponses,
+          timeSpent: timeLeft !== null ? (quiz?.settings?.duration || 0) * 60 - timeLeft : 0
+        }),
       });
 
       console.log("API response status:", result.status);
@@ -221,24 +238,22 @@ export default function TakeQuiz() {
         data = { success: false, error: "Invalid server response" };
       }
 
-      // Ensure we have a result object
-      const quizResultData = data.result || {
-        passed: true,
-        score: Math.floor(formattedResponses.length * 0.8),
-        totalQuestions: quiz?.questions?.length || 0,
-        correctAnswers: Math.floor(formattedResponses.length * 0.8)
+      // Create a safe result object with fallback values
+      const quizResultData = {
+        passed: data.result?.passed || false,
+        score: data.result?.score || 0,
+        totalQuestions: data.result?.totalQuestions || quiz?.questions?.length || 0,
+        correctAnswers: data.result?.correctAnswers || 0
       };
 
       console.log("Setting quiz as submitted with result:", quizResultData);
+      
+      // Update state in the correct order
       setQuizSubmitted(true);
       setQuizResult(quizResultData);
-      
-      // Force a delay to ensure state updates
-      setTimeout(() => {
-        console.log("Opening results modal");
-        setShowResults(true);
-        setLoading(false);
-      }, 500);
+      setShowSubmitConfirm(false);
+      setLoading(false);
+      setShowResults(true);
     } catch (err) {
       console.error("Error in the submission process:", err);
       setLoading(false);
@@ -276,7 +291,7 @@ export default function TakeQuiz() {
   return (
     <div className="min-h-screen bg-white">
       {/* Quiz Header - only show if not on results or intro screen */}
-      {!quizSubmitted && !showIntro && quiz && (
+      {!quizSubmitted && !showIntro && quiz && !showResults && (
         <>
           <header className="border-b border-gray-100">
             <div className="max-w-3xl mx-auto px-4 py-3">
@@ -305,7 +320,7 @@ export default function TakeQuiz() {
       )}
 
       {/* Question Section */}
-      {!quizSubmitted && !showIntro && currentQuestion && quiz && (
+      {!quizSubmitted && !showIntro && currentQuestion && quiz && !showResults && (
         <div className="max-w-3xl mx-auto px-4 py-6">
           {/* Question indicator */}
           <div className="flex items-center space-x-2 mb-4">
@@ -968,6 +983,71 @@ export default function TakeQuiz() {
         </div>
       )}
 
+      {/* Results Page - Show as a regular page instead of a modal */}
+      {showResults && quizSubmitted && quizResult && (
+        <div className="min-h-screen bg-gray-50">
+          <header className="border-b border-gray-100 bg-white">
+            <div className="max-w-3xl mx-auto px-4 py-3">
+              <div className="flex justify-between items-center">
+                <img src={logoText} alt="TestCraft" className="h-8" />
+              </div>
+            </div>
+          </header>
+          
+          <div className="max-w-3xl mx-auto px-4 py-8">
+            <div className="bg-white rounded-lg shadow-sm p-8">
+              <div className="text-center">
+                <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full mb-4">
+                  {quizResult?.passed ? (
+                    <div className="bg-green-100 text-green-600 rounded-full h-full w-full flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  ) : (
+                    <div className="bg-red-100 text-red-600 rounded-full h-full w-full flex items-center justify-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </div>
+                  )}
+                </div>
+                
+                <h3 className="text-xl font-medium text-gray-900 mb-2">
+                  {quizResult?.passed ? 'Congratulations!' : 'Quiz Results'}
+                </h3>
+                
+                <div className="text-center mb-4">
+                  <p className="text-lg font-medium">
+                    Score: {quizResult?.score || 0}/{quizResult?.totalQuestions || 0}
+                  </p>
+                  <p className="text-lg mt-2">
+                    {quizResult?.passed ? (
+                      <span className="text-green-600 font-medium">You passed!</span>
+                    ) : (
+                      <span className="text-red-600 font-medium">You did not pass.</span>
+                    )}
+                  </p>
+                </div>
+                
+                <div className="mt-6">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      console.log("Navigating back to dashboard from results");
+                      navigate('/dashboard');
+                    }}
+                    className="px-4 py-2 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
+                  >
+                    Return to Dashboard
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Submit Confirmation Modal */}
       <Modal 
         show={showSubmitConfirm} 
@@ -1012,66 +1092,6 @@ export default function TakeQuiz() {
               className="px-4 py-2 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
             >
               Submit
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      {/* Quiz Results Modal */}
-      <Modal 
-        show={showResults} 
-        onClose={() => {
-          console.log("Closing results modal");
-          setShowResults(false);
-          // Navigate to a dashboard or home page
-          navigate('/dashboard');
-        }}
-      >
-        <div className="p-6 text-center bg-white rounded-lg">
-          <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full mb-4">
-            {quizResult?.passed ? (
-              <div className="bg-green-100 text-green-600 rounded-full h-full w-full flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-            ) : (
-              <div className="bg-red-100 text-red-600 rounded-full h-full w-full flex items-center justify-center">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </div>
-            )}
-          </div>
-          
-          <h3 className="text-xl font-medium text-gray-900 mb-2">
-            {quizResult?.passed ? 'Congratulations!' : 'Quiz Results'}
-          </h3>
-          
-          <div className="text-center mb-4">
-            <p className="text-lg font-medium">
-              Score: {quizResult?.score || 0}/{quizResult?.totalQuestions || 0}
-            </p>
-            <p className="text-lg mt-2">
-              {quizResult?.passed ? (
-                <span className="text-green-600 font-medium">You passed!</span>
-              ) : (
-                <span className="text-red-600 font-medium">You did not pass.</span>
-              )}
-            </p>
-          </div>
-          
-          <div className="mt-6">
-            <button
-              type="button"
-              onClick={() => {
-                console.log("Navigating back to dashboard from results");
-                setShowResults(false);
-                navigate('/dashboard');
-              }}
-              className="w-full px-4 py-2 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
-            >
-              Return to Dashboard
             </button>
           </div>
         </div>
