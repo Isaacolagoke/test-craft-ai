@@ -18,6 +18,35 @@ if (!GEMINI_API_KEY) {
 // Create a new instance of GoogleGenerativeAI
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
 
+// Helper function to safely generate content with error handling and retries
+async function safeGenerateContent(model, prompt, maxRetries = 2) {
+  let attempts = 0;
+  let lastError = null;
+
+  while (attempts <= maxRetries) {
+    try {
+      console.log(`Attempt ${attempts + 1} to generate content`);
+      const result = await model.generateContent(prompt);
+      console.log('Generation successful');
+      return result;
+    } catch (error) {
+      console.error(`Generation attempt ${attempts + 1} failed:`, error);
+      lastError = error;
+      attempts++;
+      
+      // Wait before retrying (exponential backoff)
+      if (attempts <= maxRetries) {
+        const delay = 1000 * Math.pow(2, attempts);
+        console.log(`Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+  
+  // If we get here, all attempts failed
+  throw new Error(`Failed to generate content after ${maxRetries + 1} attempts: ${lastError.message}`);
+}
+
 // Configure multer for quiz image uploads
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -499,76 +528,52 @@ router.post('/generate', authenticateToken, async (req, res) => {
       
       // Distribute remaining questions
       let remaining = numQuestions - numTypes;
-      while (remaining > 0) {
-        // Pick a random type
-        const randomType = safeQuestionTypes[Math.floor(Math.random() * numTypes)];
-        distribution[randomType]++;
-        remaining--;
+      if (remaining > 0) {
+        let i = 0;
+        while (remaining > 0) {
+          distribution[safeQuestionTypes[i % numTypes]]++;
+          remaining--;
+          i++;
+        }
       }
       
-      console.log('Question type distribution:', distribution);
+      console.log('Question distribution:', distribution);
       
-      const prompt = `Create a quiz about "${topic}" with ${numberOfQuestions} questions distributed across the following question types: ${safeQuestionTypes.join(', ')}.
+      // Create the prompt
+      const prompt = `You are a professional quiz creator with expertise in ${category}. Create a quiz on the topic of "${topic}" with ${numQuestions} questions of varying difficulty levels.
 
-IMPORTANT: You MUST create questions with the EXACT distribution specified below:
-${Object.entries(distribution).map(([type, count]) => `- ${type}: ${count} questions`).join('\n')}
+Additional Instructions: ${instructions || "Make sure questions are clear and concise."}
 
-Instructions: ${instructions}
-Complexity: ${complexity}
-Category: ${category}
+The quiz should have the following structure and question types:
+${Object.entries(distribution).map(([type, count]) => `- ${count} ${type} questions`).join('\n')}
 
-Format your response as a JSON array of questions. Each question must have the following format based on type:
-
-1. multiple_choice: Questions with 4 options where user selects one correct answer
-   Example: {
-     "type": "multiple_choice",
-     "text": "What is 2 + 2?",
-     "options": ["4", "3", "5", "6"],
-     "correctAnswer": 0,
-     "explanation": "2 + 2 equals 4"
-   }
-
-2. true_false: Questions where the answer is either true or false
-   Example: {
-     "type": "true_false",
-     "text": "The Earth is flat.",
-     "correctAnswer": 1,
-     "explanation": "The Earth is spherical, not flat."
-   }
-
-3. matching: Questions where users match items from two columns
-   Example: {
-     "type": "matching",
-     "text": "Match the countries with their capitals.",
-     "items": ["France", "Germany", "Spain", "Italy"],
-     "matches": ["Paris", "Berlin", "Madrid", "Rome"],
-     "correctAnswer": [0, 1, 2, 3],
-     "explanation": "Paris is the capital of France, Berlin is the capital of Germany, etc."
-   }
-
-Example format for the complete response:
+Please provide the quiz in the following JSON format:
 {
   "questions": [
     {
       "type": "multiple_choice",
-      "text": "What is 2 + 2?",
-      "options": ["4", "3", "5", "6"],
-      "correctAnswer": 0,
-      "explanation": "2 + 2 equals 4"
+      "text": "Question text goes here?",
+      "options": ["Option A", "Option B", "Option C", "Option D"],
+      "correctAnswer": 0, // Index of the correct option
+      "explanation": "Explanation for the correct answer"
     },
     {
       "type": "true_false",
-      "text": "The Earth is flat.",
-      "correctAnswer": 1,
-      "explanation": "The Earth is spherical, not flat."
+      "text": "True/False question text goes here",
+      "options": ["True", "False"],
+      "correctAnswer": 0, // 0 for True, 1 for False
+      "explanation": "Explanation for the correct answer"
     },
     {
       "type": "matching",
-      "text": "Match the countries with their capitals.",
-      "items": ["France", "Germany", "Spain", "Italy"],
-      "matches": ["Paris", "Berlin", "Madrid", "Rome"],
-      "correctAnswer": [0, 1, 2, 3],
-      "explanation": "Paris is the capital of France, Berlin is the capital of Germany, etc."
+      "text": "Match the items on the left with those on the right",
+      "options": [
+        {"left": "Item 1", "right": "Match 1"},
+        {"left": "Item 2", "right": "Match 2"},
+        {"left": "Item 3", "right": "Match 3"}
+      ],
+      "correctAnswer": [0, 1, 2], // Indices showing the correct matches (Item 1 -> Match 1, etc.)
+      "explanation": "Explanation for the correct matches"
     }
   ]
 }
@@ -576,8 +581,13 @@ Example format for the complete response:
 IMPORTANT: STRICTLY follow the distribution of question types I specified. The total number of questions must be exactly ${numberOfQuestions}, with the exact counts for each type as I specified.`;
 
       console.log('Sending prompt to Gemini...');
-      const result = await model.generateContent(prompt);
+      // Use the safe generation function with retries
+      const result = await safeGenerateContent(model, prompt);
       console.log('Generation completed');
+      
+      if (!result || !result.response) {
+        throw new Error('Empty response from Gemini API');
+      }
       
       const responseText = result.response.text();
       console.log('Raw response length:', responseText.length);
@@ -585,7 +595,7 @@ IMPORTANT: STRICTLY follow the distribution of question types I specified. The t
       // Try to parse the response as JSON
       let formattedQuestions;
       try {
-        formattedQuestions = JSON.parse(responseText);
+        formattedQuestions = JSON.parse(responseText.trim());
       } catch (e) {
         console.error('Failed to parse JSON response:', e);
         // Try to extract JSON from markdown
@@ -604,13 +614,10 @@ IMPORTANT: STRICTLY follow the distribution of question types I specified. The t
           typeCounts[q.type] = (typeCounts[q.type] || 0) + 1;
         });
         
-        console.log('Questions generated by type:', typeCounts);
-        
-        // Check if we have the right distribution
+        // Check if we need to correct the distribution
         let needsCorrection = false;
         safeQuestionTypes.forEach(type => {
-          if (!typeCounts[type] || typeCounts[type] < distribution[type]) {
-            console.warn(`Missing ${type} questions. Expected ${distribution[type]}, got ${typeCounts[type] || 0}`);
+          if ((typeCounts[type] || 0) < distribution[type]) {
             needsCorrection = true;
           }
         });

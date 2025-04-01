@@ -622,25 +622,57 @@ export default function CreateQuiz() {
     }
   }
 
-  const handleGenerateWithAI = async () => {
+  const handleGenerateWithAI = async (e) => {
+    e.preventDefault();
+    
     try {
-      // Validate required fields
-      const missingFields = [];
-      if (!quizData.title) missingFields.push('title');
-      if (!quizData.description) missingFields.push('description');
-      if (!quizData.complexity) missingFields.push('complexity');
-      if (!quizData.category) missingFields.push('category');
-
-      if (missingFields.length > 0) {
-        toast.error(`Please fill in: ${missingFields.join(', ')}`);
+      if (!quizData.title) {
+        toast.error('Please enter a quiz title');
         return;
       }
-
+      
+      if (quizData.selectedQuestionTypes.length === 0) {
+        toast.error('Please select at least one question type');
+        return;
+      }
+      
+      if (!quizData.numberOfQuestions || quizData.numberOfQuestions < 1) {
+        toast.error('Please enter a valid number of questions');
+        return;
+      }
+      
       setIsGenerating(true);
+      
+      // Notify user that generation has started
+      toast.loading('Generating quiz questions with AI. This may take up to 30 seconds...', {
+        id: 'generation-toast',
+        duration: 30000
+      });
+      
       const token = localStorage.getItem('token');
       if (!token) {
         throw new Error('No authentication token found');
       }
+
+      // Create an array of AI-supported types from the selected types
+      const aiSupportedTypes = quizData.selectedQuestionTypes.filter(
+        type => AI_SUPPORTED_TYPES.includes(type)
+      );
+      
+      if (aiSupportedTypes.length === 0) {
+        toast.error('None of the selected question types are supported by AI generation');
+        setIsGenerating(false);
+        return;
+      }
+
+      console.log('Sending AI generation request with:', {
+        topic: quizData.title,
+        instructions: quizData.description || 'Create clear and concise questions',
+        complexity: quizData.complexity,
+        category: quizData.category,
+        numberOfQuestions: quizData.numberOfQuestions,
+        questionTypes: aiSupportedTypes
+      });
 
       const response = await fetch('http://localhost:3001/api/quizzes/generate', {
         method: 'POST',
@@ -654,13 +686,19 @@ export default function CreateQuiz() {
           complexity: quizData.complexity,
           category: quizData.category,
           numberOfQuestions: quizData.numberOfQuestions || 5,
-          questionTypes: quizData.selectedQuestionTypes.filter(type => AI_SUPPORTED_TYPES.includes(type)) || ['multiple_choice']
+          questionTypes: aiSupportedTypes
         })
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || `Server error: ${response.status}`);
+        let errorMessage = 'Server error';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || `Server error: ${response.status}`;
+        } catch (e) {
+          errorMessage = `Server error: ${response.status}`;
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -680,38 +718,73 @@ export default function CreateQuiz() {
         
         // Handle different question types
         switch (q.type) {
-          case 'true_false':
-            formattedQuestion.options = ['True', 'False'];
-            formattedQuestion.correctAnswer = q.correctAnswer;
-            break;
-            
-          case 'matching':
-            formattedQuestion.items = q.items || [];
-            formattedQuestion.matches = q.matches || [];
-            formattedQuestion.correctAnswer = q.correctAnswer || [];
-            break;
-            
-          default: // multiple_choice
+          case 'multiple_choice':
             formattedQuestion.options = q.options || ['Option 1', 'Option 2', 'Option 3', 'Option 4'];
             formattedQuestion.correctAnswer = typeof q.correctAnswer === 'number' ? q.correctAnswer : 0;
+            break;
+          case 'true_false':
+            formattedQuestion.options = ['True', 'False'];
+            formattedQuestion.correctAnswer = typeof q.correctAnswer === 'number' ? q.correctAnswer : 0;
+            break;
+          case 'matching':
+            // Handle matching type
+            if (Array.isArray(q.options) && q.options.length > 0 && q.options[0].left) {
+              // Already in the right format
+              formattedQuestion.options = q.options;
+            } else if (Array.isArray(q.items) && Array.isArray(q.matches)) {
+              // Convert from items/matches format to left/right format
+              formattedQuestion.options = q.items.map((item, i) => ({
+                left: item,
+                right: q.matches[i] || ''
+              }));
+            } else {
+              // Default format
+              formattedQuestion.options = [
+                { left: 'Item 1', right: 'Match 1' },
+                { left: 'Item 2', right: 'Match 2' }
+              ];
+            }
+            
+            // Ensure correctAnswer is an array
+            if (Array.isArray(q.correctAnswer)) {
+              formattedQuestion.correctAnswer = q.correctAnswer;
+            } else {
+              formattedQuestion.correctAnswer = Array.from({ length: formattedQuestion.options.length }, (_, i) => i);
+            }
+            break;
+          default:
+            // For unknown types, default to multiple choice
+            formattedQuestion.type = 'multiple_choice';
+            formattedQuestion.options = ['Option 1', 'Option 2', 'Option 3', 'Option 4'];
+            formattedQuestion.correctAnswer = 0;
         }
         
         return formattedQuestion;
       });
 
+      console.log('Generated questions:', formattedQuestions);
+      
       // Update quiz data with generated questions
       setQuizData(prev => ({
         ...prev,
-        questions: [...prev.questions, ...formattedQuestions]
+        questions: formattedQuestions
       }));
-
-      // Move to questions tab
-      setCurrentStep('questions');
       
-      toast.success('Questions generated successfully!');
-    } catch (error) {
-      console.error('Error generating quiz:', error);
-      toast.error(error.message || 'Failed to generate questions');
+      // Show success toast
+      toast.success(`Successfully generated ${formattedQuestions.length} questions!`, {
+        id: 'generation-toast',
+        duration: 3000
+      });
+      
+      // Move to preview step
+      setCurrentStep('preview');
+      
+    } catch (err) {
+      console.error('Error generating quiz:', err);
+      toast.error(`Failed to generate quiz: ${err.message}`, {
+        id: 'generation-toast',
+        duration: 5000
+      });
     } finally {
       setIsGenerating(false);
     }
