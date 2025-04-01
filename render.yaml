@@ -25,7 +25,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_URL
-        fromService:
-          name: testcraft-api
-          type: web
-          property: url
+        value: https://testcraft-api.onrender.com
