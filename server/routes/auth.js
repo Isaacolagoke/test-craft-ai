@@ -31,6 +31,8 @@ const validatePassword = (password) => {
 // Register endpoint
 router.post('/register', async (req, res) => {
     try {
+        console.log('Registration attempt:', { ...req.body, password: '[REDACTED]' });
+        
         const { name, email, password } = req.body;
 
         // Validate input
@@ -73,34 +75,61 @@ router.post('/register', async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
+        // Make sure users table exists
+        await db.run(`CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT,
+            email TEXT UNIQUE,
+            password TEXT,
+            role TEXT DEFAULT 'student',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )`);
+
         // Insert user
-        const result = await db.run(
-            'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
-            [name, email, hashedPassword]
-        );
+        try {
+            const result = await db.run(
+                'INSERT INTO users (name, email, password) VALUES (?, ?, ?)',
+                [name, email, hashedPassword]
+            );
+            
+            // Generate token
+            const token = jwt.sign(
+                { id: result.lastID, email },
+                process.env.JWT_SECRET || 'your-secret-key',
+                { expiresIn: '24h' }
+            );
 
-        // Generate token
-        const token = jwt.sign(
-            { id: result.lastID, email },
-            process.env.JWT_SECRET,
-            { expiresIn: '24h' }
-        );
-
-        res.status(201).json({
-            success: true,
-            message: 'User registered successfully',
-            token,
-            user: {
-                id: result.lastID,
-                name,
-                email
+            console.log('User registered successfully:', { id: result.lastID, name, email });
+            
+            res.status(201).json({
+                success: true,
+                message: 'User registered successfully',
+                token,
+                user: {
+                    id: result.lastID,
+                    name,
+                    email
+                }
+            });
+        } catch (insertErr) {
+            console.error('Error inserting user into database:', insertErr);
+            
+            // Check if it's a unique constraint error
+            if (insertErr.message && insertErr.message.includes('UNIQUE constraint failed')) {
+                return res.status(409).json({
+                    success: false,
+                    error: 'User with this email already exists'
+                });
             }
-        });
+            
+            throw insertErr;
+        }
     } catch (err) {
         console.error('Registration error:', err);
         res.status(500).json({
             success: false,
-            error: 'Failed to register user'
+            error: 'Failed to register user',
+            message: process.env.NODE_ENV === 'development' ? err.message : 'Internal server error'
         });
     }
 });
