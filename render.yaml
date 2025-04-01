@@ -15,10 +15,12 @@ services:
         value: 10000
   
   # Frontend web service
-  - type: static
+  - type: web
     name: testcraft-web
+    env: static
+    plan: free
     buildCommand: cd frontend && npm install && npm run build
-    publishPath: ./frontend/dist
+    staticPublishPath: ./frontend/dist
     routes:
       - type: rewrite
         source: /*
