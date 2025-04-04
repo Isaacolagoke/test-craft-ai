@@ -11,6 +11,7 @@ import QuizView from './pages/QuizView';
 import QuizSubmissions from './pages/QuizSubmissions';
 import PrivateRoute from './components/PrivateRoute'
 import NotFound from './pages/NotFound'
+import RouterFallback from './RouterFallback'
 
 function App() {
   return (
@@ -31,6 +32,8 @@ function App() {
           },
         }}
       />
+      {/* This component handles redirects from 404.html */}
+      <RouterFallback />
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
