@@ -4,8 +4,8 @@ services:
     name: testcraft-api
     env: node
     plan: free
-    buildCommand: npm install
-    startCommand: npm start
+    buildCommand: npm install && cd server && npm install
+    startCommand: cd server && npm install @supabase/supabase-js && node index.js
     envVars:
       - key: NODE_ENV
         value: production
