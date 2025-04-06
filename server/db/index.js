@@ -371,26 +371,36 @@ async function updateQuizContent(id, title, description) {
  */
 async function updateQuiz(id, updates) {
   try {
-    console.log(`Updating quiz ${id} with:`, updates);
+    console.log(`Updating quiz ${id} with:`, JSON.stringify(updates));
+    
+    // Clone the updates to avoid modifying the original
+    const updatesCopy = { ...updates };
     
     // Handle settings correctly if it's included in the updates
-    if (updates.settings) {
-      if (typeof updates.settings === 'string') {
+    if (updatesCopy.settings) {
+      // If settings is a string, parse it to an object
+      if (typeof updatesCopy.settings === 'string') {
         try {
-          updates.settings = JSON.parse(updates.settings);
+          updatesCopy.settings = JSON.parse(updatesCopy.settings);
         } catch (e) {
           console.warn('Error parsing settings string in updateQuiz:', e);
+          // If parsing fails, create an empty object
+          updatesCopy.settings = {};
         }
       }
+      
       // Make sure settings is always an object
-      if (!updates.settings || typeof updates.settings !== 'object') {
-        updates.settings = {};
+      if (!updatesCopy.settings || typeof updatesCopy.settings !== 'object') {
+        updatesCopy.settings = {};
       }
     }
     
+    // Log the final update object
+    console.log(`Processed updates for quiz ${id}:`, JSON.stringify(updatesCopy));
+    
     const { data, error } = await supabase
       .from('quizzes')
-      .update(updates)
+      .update(updatesCopy)
       .eq('id', id)
       .select()
       .single();

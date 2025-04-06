@@ -876,12 +876,11 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
       settings.accessCode = accessCode;
     }
 
-    // Also update the access_code field directly for easier access
+    // Only update fields that exist in the database schema
     const updates = {
       status: 'published',
       published_at: new Date().toISOString(),
-      settings: settings,
-      access_code: accessCode // Add this to make access code directly accessible
+      settings: settings
     };
 
     console.log('Updating quiz with:', updates);
@@ -896,8 +895,7 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
       success: true,
       quiz: {
         ...result,
-        settings: settings,
-        access_code: accessCode // Make sure access_code is included in response
+        settings: settings
       },
       message: 'Quiz published successfully',
       accessCode: accessCode // For backward compatibility
