@@ -83,7 +83,8 @@ const QuizCard = ({ quiz, onStatusChange }) => {
       }
     }
 
-    const defaultImage = '/uploads/quiz-images/default-quiz.jpg';
+    // Use a publicly available placeholder image instead of a local one that doesn't exist on Render
+    const defaultImage = 'https://placehold.co/600x400/e9e9e9/5d5d5d?text=Quiz+Image';
     
     // Use our new utility for consistent URL formatting
     const imageUrlToUse = quiz.image_url || 
@@ -92,7 +93,8 @@ const QuizCard = ({ quiz, onStatusChange }) => {
                          (settings && settings.imageUrl) || 
                          defaultImage;
     
-    return getImageUrl(imageUrlToUse);
+    // Don't run the URL through getImageUrl if it's our default placeholder
+    return imageUrlToUse === defaultImage ? imageUrlToUse : getImageUrl(imageUrlToUse);
   };
 
   // Handle status change
@@ -161,7 +163,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
               className="w-full h-full object-cover"
               onError={(e) => {
                 console.error('Failed to load image:', getCardImageUrl());
-                e.target.src = '/uploads/quiz-images/default-quiz.jpg';
+                e.target.src = 'https://placehold.co/600x400/e9e9e9/5d5d5d?text=Quiz+Image';
               }}
             />
             
