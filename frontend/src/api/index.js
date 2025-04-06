@@ -79,8 +79,20 @@ const quizzes = {
   delete: (id) => api.delete(`/api/quizzes/${id}`),
   updateStatus: (id, data) => api.put(`/api/quizzes/${id}/status`, data),
   publish: (id) => {
-    console.log(`Publishing quiz with ID ${id} to ${api.defaults.baseURL}/api/quizzes/${id}/publish`);
-    return api.put(`/api/quizzes/${id}/publish`);
+    // Log the URL and API config for debugging
+    console.log('API baseURL:', api.defaults.baseURL);
+    // The error shows we're still trying to hit /quizzes instead of /api/quizzes
+    // Let's create a new request object directly to fix it
+    const url = `${api.defaults.baseURL}/api/quizzes/${id}/publish`;
+    console.log(`Publishing quiz with ID ${id} to ${url}`);
+    return axios({
+      method: 'PUT',
+      url: url,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${localStorage.getItem('token')}`
+      }
+    });
   },
   pause: (id) => api.put(`/api/quizzes/${id}/status`, { isAcceptingResponses: false }),
   resume: (id) => api.put(`/api/quizzes/${id}/status`, { isAcceptingResponses: true }),

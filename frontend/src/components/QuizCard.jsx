@@ -100,6 +100,36 @@ const QuizCard = ({ quiz, onStatusChange }) => {
     return imageUrlToUse === defaultImage ? imageUrlToUse : getImageUrl(imageUrlToUse);
   };
 
+  // Get quiz access code from wherever it might be stored
+  const getAccessCode = () => {
+    // Many possible locations where access code might be stored
+    return access_code || 
+           (settings && settings.accessCode) || 
+           quiz.access_code || 
+           (quiz.settings && typeof quiz.settings === 'object' && quiz.settings.accessCode) ||
+           (quiz.settings && typeof quiz.settings === 'string' && 
+             (() => {
+               try {
+                 const parsed = JSON.parse(quiz.settings);
+                 return parsed.accessCode;
+               } catch (e) {
+                 return null;
+               }
+             })()
+           );
+  };
+
+  // Generate the shareable URL for the quiz
+  const getQuizUrl = () => {
+    const quizCode = getAccessCode();
+    console.log('getQuizUrl for quiz ID ' + id + ':', { quizCode, status });
+    if (!quizCode || status !== 'published') return null;
+    
+    // Get base URL (works in production and development)
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/quiz/${quizCode}/take`;
+  };
+
   // Handle status change
   const handleStatusChange = async (action) => {
     try {
@@ -174,17 +204,6 @@ const QuizCard = ({ quiz, onStatusChange }) => {
         console.error('Failed to copy:', err);
         toast.error('Failed to copy to clipboard');
       });
-  };
-
-  // Generate the shareable URL for the quiz
-  const getQuizUrl = () => {
-    const quizCode = access_code || settings?.accessCode;
-    console.log('getQuizUrl for quiz ID ' + id + ':', { quizCode, status });
-    if (!quizCode || status !== 'published') return null;
-    
-    // Get base URL (works in production and development)
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/quiz/${quizCode}/take`;
   };
 
   // Debug what we actually have for settings, status, and access code
@@ -371,42 +390,43 @@ const QuizCard = ({ quiz, onStatusChange }) => {
             </div>
           </div>
 
-          {/* Sharing Information (For any published quiz) */}
+          {/* Sharing Information - Redesigned to be compact */}
           {status === 'published' && (
-            <div className="mt-4 pt-3 border-t border-gray-100">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">Share with learners:</h3>
-              
-              {/* Access Code */}
-              <div className="flex items-center justify-between bg-gray-50 rounded-md px-3 py-2 mb-2">
-                <div className="flex items-center">
-                  <span className="text-xs text-gray-500 mr-2">Access Code:</span>
-                  <span className="text-sm font-mono font-medium">{access_code || settings?.accessCode || 'Waiting for code...'}</span>
-                </div>
+            <div className="mt-3 pt-2 border-t border-gray-100">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-sm font-medium text-gray-700">Share with learners:</h3>
+                
+                {/* Copy URL Button */}
                 <button 
-                  onClick={() => copyToClipboard(access_code || settings?.accessCode, 'code')}
-                  className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full transition-colors"
-                  title="Copy access code"
-                  disabled={!(access_code || settings?.accessCode)}
+                  onClick={() => copyToClipboard(getQuizUrl(), 'url')}
+                  className="flex items-center px-2 py-1 bg-gray-50 hover:bg-gray-100 rounded text-sm text-gray-600 transition-colors"
+                  disabled={!getQuizUrl()}
+                  title="Copy quiz URL"
                 >
-                  <ClipboardDocumentIcon className="w-4 h-4" />
-                  {copied.code && <span className="sr-only">Copied!</span>}
+                  <LinkIcon className="w-4 h-4 mr-1" />
+                  Copy URL
+                  {copied.url && <span className="ml-1 text-primary">✓</span>}
                 </button>
               </div>
               
-              {/* Quiz URL */}
+              {/* Access Code Display */}
               <div className="flex items-center justify-between bg-gray-50 rounded-md px-3 py-2">
-                <div className="flex items-center truncate max-w-[85%]">
-                  <span className="text-xs text-gray-500 mr-2">Quiz URL:</span>
-                  <span className="text-sm truncate">{getQuizUrl() || 'Waiting for URL...'}</span>
+                <div className="flex items-center">
+                  <span className="text-xs text-gray-500 mr-1">Code:</span>
+                  <span className="text-sm font-mono font-medium">
+                    {getAccessCode() || (
+                      <span className="text-gray-400 text-xs">Processing...</span>
+                    )}
+                  </span>
                 </div>
                 <button 
-                  onClick={() => copyToClipboard(getQuizUrl(), 'url')}
-                  className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
-                  title="Copy quiz URL"
-                  disabled={!getQuizUrl()}
+                  onClick={() => copyToClipboard(getAccessCode(), 'code')}
+                  className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full transition-colors"
+                  title="Copy access code"
+                  disabled={!getAccessCode()}
                 >
-                  <LinkIcon className="w-4 h-4" />
-                  {copied.url && <span className="sr-only">Copied!</span>}
+                  <ClipboardDocumentIcon className="w-3.5 h-3.5" />
+                  {copied.code && <span className="sr-only">Copied!</span>}
                 </button>
               </div>
             </div>

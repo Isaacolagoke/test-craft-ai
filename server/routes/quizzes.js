@@ -845,7 +845,6 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
     }
 
     // Generate a random access code if not already present
-    // Since we don't have access_code column, we'll check settings or generate a new one
     let accessCode;
     let settings = {};
     
@@ -873,27 +872,35 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
       accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
       console.log('Generated new access code:', accessCode);
       
-      // Store the access code in settings since we don't have an access_code column
+      // Store the access code in settings
       settings.accessCode = accessCode;
     }
 
-    // Update the quiz with the published status and access code in settings
-    console.log('Updating quiz with settings:', settings);
-    const result = await db.updateQuiz(id, {
+    // Also update the access_code field directly for easier access
+    const updates = {
       status: 'published',
-      settings: settings
-    });
+      published_at: new Date().toISOString(),
+      settings: settings,
+      access_code: accessCode // Add this to make access code directly accessible
+    };
+
+    console.log('Updating quiz with:', updates);
+    
+    // Update the quiz with the published status and access code
+    const result = await db.updateQuiz(id, updates);
 
     console.log('Update result:', result);
 
+    // Ensure consistent object structure in the response
     res.json({
       success: true,
       quiz: {
         ...result,
-        settings: settings
+        settings: settings,
+        access_code: accessCode // Make sure access_code is included in response
       },
       message: 'Quiz published successfully',
-      accessCode: accessCode
+      accessCode: accessCode // For backward compatibility
     });
   } catch (error) {
     console.error('Error publishing quiz:', error);
@@ -970,7 +977,7 @@ router.get('/access/:code', async (req, res) => {
     const quizzes = await db.getQuizzes();
     console.log(`Found ${quizzes.length} quizzes. Searching for code: ${accessCode}`);
     
-    // Find the quiz with matching access code in settings JSON
+    // Find the quiz with matching access code in settings
     let matchedQuiz = null;
     for (const quiz of quizzes) {
       try {
