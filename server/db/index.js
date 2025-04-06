@@ -231,32 +231,63 @@ async function getQuestions(quizId) {
  */
 async function createQuiz(creatorId, title, description, settings) {
   try {
+    console.log('Creating quiz with params:', {
+      creatorId,
+      title,
+      hasDescription: !!description,
+      settingsType: typeof settings
+    });
+
     // Handle settings properly - it could be a string or an object
     let settingsObj;
     if (typeof settings === 'string') {
       try {
         settingsObj = JSON.parse(settings);
+        console.log('Successfully parsed settings string');
       } catch (e) {
-        console.warn('Error parsing settings string, using as-is:', e);
-        settingsObj = settings;
+        console.warn('Error parsing settings string, using empty object:', e);
+        settingsObj = {};
       }
+    } else if (settings) {
+      console.log('Settings already an object, using directly');
+      settingsObj = settings;
     } else {
-      settingsObj = settings || {};
+      console.log('No settings provided, using empty object');
+      settingsObj = {};
     }
 
+    console.log('Processed settings object:', settingsObj);
+
+    // Ensure we have valid title
+    if (!title) {
+      title = 'Untitled Quiz';
+    }
+
+    // Ensure creator_id is a number
+    const creatorIdNum = parseInt(creatorId, 10);
+    if (isNaN(creatorIdNum)) {
+      throw new Error(`Invalid creator_id: ${creatorId}`);
+    }
+
+    console.log('Inserting quiz into database');
     const { data, error } = await supabase
       .from('quizzes')
       .insert({
-        creator_id: creatorId,
+        creator_id: creatorIdNum,
         title,
-        description,
+        description: description || '',
         settings: settingsObj,
         status: 'draft'
       })
       .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase error creating quiz:', error);
+      throw error;
+    }
+    
+    console.log('Quiz created successfully:', data?.id);
     return data;
   } catch (error) {
     console.error('Error creating quiz:', error);
@@ -275,7 +306,7 @@ async function createQuiz(creatorId, title, description, settings) {
  */
 async function createQuestion(quizId, type, text, options, correctAnswer) {
   try {
-    // Handle options properly - it could be a string or an array
+    // Handle options properly - it could be a string or array
     let optionsArray;
     if (typeof options === 'string') {
       try {

@@ -432,72 +432,71 @@ export default function CreateQuiz() {
       const mappedQuestions = quizData.questions.map(question => ({
         ...question,
         text: question.content, // Map 'content' field to 'text' field for backend
+        content: undefined
       }));
 
       // Structure data for backend expectations
       const quizPayload = {
-        title: quizData.title,
-        description: quizData.description,
-        imageUrl: quizData.imageUrl,
-        // Ensure settings contains all the fields needed by the QuizCard component
+        title: quizData.title || 'Untitled Quiz',
+        description: quizData.description || '',
+        imageUrl: quizData.imageUrl || '',
         settings: {
           category: quizData.category || '',
           complexity: quizData.complexity || 'medium',
           duration: quizData.timeLimit || 30,
           timeUnit: quizData.timeUnit || 'minutes',
-          // Add any other settings the quiz might need
           passingScore: quizData.passingScore || 60,
           showCorrectAnswers: quizData.showCorrectAnswers || false,
           randomizeQuestions: quizData.randomizeQuestions || false
         },
-        questions: mappedQuestions // Use mapped questions with correct field names
+        questions: mappedQuestions
       };
 
-      // Log structured payload for debugging
       console.log('Structured payload:', quizPayload);
 
-      // Fix: use the correct API URL (removing the duplicate '/api')
-      const response = await fetch(getApiUrl('/quizzes'), {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(quizPayload)
-      });
+      // Use the API client from api/index.js instead of fetch
+      try {
+        const { quizzes } = await import('../api');
+        const response = await quizzes.create(quizPayload);
+        console.log('Save response:', response);
+        
+        if (!response.data) {
+          throw new Error('No response data received');
+        }
+        
+        const data = response.data;
+        
+        const quizId = data.quiz?.id;
+        console.log('Quiz ID extracted:', quizId);
+        
+        if (!quizId) {
+          console.error('Response structure:', data);
+          throw new Error('No quiz ID received from server');
+        }
 
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || `Server error: ${response.status}`);
+        // Update quiz data with the received ID
+        setQuizData(prevData => ({
+          ...prevData,
+          id: quizId
+        }));
+
+        // Show success message
+        toast.success('Quiz saved successfully!', {
+          duration: 3000,
+          position: 'top-center'
+        });
+
+        // Move to settings step (according to our reordered steps)
+        setCurrentStep('settings');
+      } catch (error) {
+        console.error('Error saving quiz:', error);
+        toast.error(error.message || 'Failed to save quiz', {
+          duration: 5000,
+          position: 'top-center'
+        });
+      } finally {
+        setIsSaving(false);
       }
-
-      console.log('Save response:', data);
-
-      // Check for quiz ID in the correct location in the response structure
-      // The backend returns the ID inside the quiz object
-      const quizId = data.quiz?.id;
-      console.log('Quiz ID extracted:', quizId);
-      
-      if (!quizId) {
-        console.error('Response structure:', data);
-        throw new Error('No quiz ID received from server');
-      }
-
-      // Update quiz data with the received ID
-      setQuizData(prevData => ({
-        ...prevData,
-        id: quizId
-      }));
-
-      // Show success message
-      toast.success('Quiz saved successfully!', {
-        duration: 3000,
-        position: 'top-center'
-      });
-
-      // Move to settings step (according to our reordered steps)
-      setCurrentStep('settings');
     } catch (error) {
       console.error('Error saving quiz:', error);
       toast.error(error.message || 'Failed to save quiz', {

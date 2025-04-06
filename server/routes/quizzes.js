@@ -289,18 +289,57 @@ router.get('/:id', authenticateToken, async (req, res) => {
 // Create quiz
 router.post('/', authenticateToken, async (req, res) => {
   try {
+    // Log the incoming request body for debugging
+    console.log('Creating quiz with body:', JSON.stringify({
+      ...req.body,
+      questions: req.body.questions ? `${req.body.questions.length} questions` : 'no questions'
+    }));
+
     const { title, description, settings, questions, imageUrl } = req.body;
     const userId = req.user.id;
 
-    // Insert quiz - removing imageUrl from SQL statement since the column doesn't exist
-    const result = await db.createQuiz(userId, title, description, JSON.stringify(settings));
+    // Validate required fields
+    if (!title) {
+      return res.status(400).json({
+        success: false,
+        error: 'Quiz title is required'
+      });
+    }
+
+    // Insert quiz with additional logging
+    console.log('Creating quiz in database with userId:', userId);
+    const result = await db.createQuiz(userId, title, description, settings);
+    console.log('Quiz created with ID:', result.id);
 
     const quizId = result.id;
 
     // Insert questions if provided
     if (questions && questions.length > 0) {
+      console.log(`Adding ${questions.length} questions to quiz ${quizId}`);
+      
       for (const question of questions) {
-        await db.createQuestion(quizId, question.type, question.text || question.content, JSON.stringify(question.options), question.correctAnswer);
+        try {
+          // Ensure we have either text or content field
+          const questionText = question.text || question.content || '';
+          if (!questionText) {
+            console.warn('Question missing text/content:', question);
+          }
+          
+          // Handle options format
+          const options = question.options || [];
+          
+          // Create question with careful error handling
+          await db.createQuestion(
+            quizId, 
+            question.type || 'multiple_choice', 
+            questionText, 
+            options, 
+            question.correctAnswer
+          );
+        } catch (questionError) {
+          console.error('Error creating question:', questionError, 'Question data:', question);
+          // Continue with other questions even if one fails
+        }
       }
     }
 
@@ -308,20 +347,35 @@ router.post('/', authenticateToken, async (req, res) => {
     const quiz = await db.getQuiz(quizId, userId);
     const quizQuestions = await db.getQuestions(quizId);
 
-    // Parse settings
+    // Parse settings - careful error handling
     let parsedSettings = {};
     try {
-      parsedSettings = quiz.settings ? JSON.parse(quiz.settings) : {};
+      if (typeof quiz.settings === 'string' && quiz.settings) {
+        parsedSettings = JSON.parse(quiz.settings);
+      } else if (quiz.settings) {
+        parsedSettings = quiz.settings;
+      }
     } catch (e) {
       console.error('Error parsing quiz settings:', e);
     }
 
-    // Parse question options
-    const parsedQuestions = quizQuestions.map(q => ({
-      ...q,
-      options: JSON.parse(q.options)
-    }));
+    // Parse question options - careful error handling
+    const parsedQuestions = quizQuestions.map(q => {
+      try {
+        return {
+          ...q,
+          options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options || []
+        };
+      } catch (e) {
+        console.error('Error parsing question options:', e);
+        return {
+          ...q,
+          options: []
+        };
+      }
+    });
 
+    // Return successful response with complete quiz data
     res.json({
       success: true,
       quiz: {
@@ -336,7 +390,8 @@ router.post('/', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       error: 'Failed to create quiz',
-      details: error.message
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
