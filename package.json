@@ -8,6 +8,7 @@
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
     "build": "cd frontend && npm install && npm run build",
+    "prestart": "npm install",
     "render-postbuild": "mkdir -p server/uploads/quiz-images"
   },
   "keywords": [],
