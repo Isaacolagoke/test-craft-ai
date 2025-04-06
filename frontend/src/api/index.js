@@ -3,7 +3,7 @@ import { toast } from 'react-hot-toast';
 
 // Create axios instance with default config
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : 'http://localhost:3001/api',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:3001',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -72,34 +72,34 @@ api.interceptors.response.use(
 
 // Quiz endpoints
 const quizzes = {
-  getAll: () => api.get('/quizzes'),
-  getById: (id) => api.get(`/quizzes/${id}`),
-  create: (data) => api.post('/quizzes', data),
-  update: (id, data) => api.put(`/quizzes/${id}`, data),
-  delete: (id) => api.delete(`/quizzes/${id}`),
-  updateStatus: (id, data) => api.put(`/quizzes/${id}/status`, data),
-  publish: (id) => api.put(`/quizzes/${id}/publish`),
-  pause: (id) => api.put(`/quizzes/${id}/pause`),
-  resume: (id) => api.put(`/quizzes/${id}/resume`),
-  generateQuestions: (params) => api.post('/quizzes/generate', params),
-  uploadImage: (formData) => api.post('/quizzes/upload-image', formData, {
+  getAll: () => api.get('/api/quizzes'),
+  getById: (id) => api.get(`/api/quizzes/${id}`),
+  create: (data) => api.post('/api/quizzes', data),
+  update: (id, data) => api.put(`/api/quizzes/${id}`, data),
+  delete: (id) => api.delete(`/api/quizzes/${id}`),
+  updateStatus: (id, data) => api.put(`/api/quizzes/${id}/status`, data),
+  publish: (id) => api.put(`/api/quizzes/${id}/publish`),
+  pause: (id) => api.put(`/api/quizzes/${id}/pause`),
+  resume: (id) => api.put(`/api/quizzes/${id}/resume`),
+  generateQuestions: (params) => api.post('/api/quizzes/generate', params),
+  uploadImage: (formData) => api.post('/api/quizzes/upload-image', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   })
 };
 
 // Auth endpoints
 const auth = {
-  login: (credentials) => api.post('/auth/login', credentials),
-  register: (data) => api.post('/auth/register', data),
-  logout: () => api.post('/auth/logout'),
-  verify: () => api.get('/auth/verify'),
-  resetPassword: (email) => api.post('/auth/reset-password-request', { email })
+  login: (credentials) => api.post('/api/auth/login', credentials),
+  register: (data) => api.post('/api/auth/register', data),
+  logout: () => api.post('/api/auth/logout'),
+  verify: () => api.get('/api/auth/verify'),
+  resetPassword: (email) => api.post('/api/auth/reset-password-request', { email })
 };
 
 // Statistics endpoints
 const statistics = {
-  getQuizStats: (quizId) => api.get(`/statistics/quiz/${quizId}`),
-  getUserStats: () => api.get('/statistics/user')
+  getQuizStats: (quizId) => api.get(`/api/statistics/quiz/${quizId}`),
+  getUserStats: () => api.get('/api/statistics/user')
 };
 
 export { api, quizzes, auth, statistics };
