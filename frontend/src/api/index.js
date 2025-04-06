@@ -10,8 +10,8 @@ const api = axios.create({
   withCredentials: true // Important for cookies/sessions
 });
 
-// Log API configuration for debugging
-console.log('API baseURL:', api.defaults.baseURL);
+// For debugging purposes, log the baseURL
+console.log('API baseURL configured as:', api.defaults.baseURL);
 
 // Helper function to check if token has expired
 const isTokenExpired = (token) => {
@@ -79,19 +79,28 @@ const quizzes = {
   delete: (id) => api.delete(`/api/quizzes/${id}`),
   updateStatus: (id, data) => api.put(`/api/quizzes/${id}/status`, data),
   publish: (id) => {
-    // Log the URL and API config for debugging
-    console.log('API baseURL:', api.defaults.baseURL);
-    // The error shows we're still trying to hit /quizzes instead of /api/quizzes
-    // Let's create a new request object directly to fix it
-    const url = `${api.defaults.baseURL}/api/quizzes/${id}/publish`;
+    // Get base URL from environment or use production URL as fallback
+    const baseUrl = import.meta.env.VITE_API_URL || 'https://testcraft-api.onrender.com';
+    
+    // Create direct URL that explicitly includes /api path
+    const url = `${baseUrl}/api/quizzes/${id}/publish`;
     console.log(`Publishing quiz with ID ${id} to ${url}`);
-    return axios({
+    
+    // Get token from localStorage
+    const token = localStorage.getItem('token');
+    
+    // Make direct fetch request as a last resort to bypass any axios configuration issues
+    return fetch(url, {
       method: 'PUT',
-      url: url,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${localStorage.getItem('token')}`
+        'Authorization': token ? `Bearer ${token}` : ''
       }
+    }).then(response => {
+      if (!response.ok) {
+        throw new Error(`Server responded with status: ${response.status}`);
+      }
+      return response.json();
     });
   },
   pause: (id) => api.put(`/api/quizzes/${id}/status`, { isAcceptingResponses: false }),

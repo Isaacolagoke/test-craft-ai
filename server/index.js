@@ -70,6 +70,14 @@ app.use('/api/auth', authRoutes);
 app.use('/api/quizzes', quizRoutes);
 app.use('/api/statistics', statisticsRoutes);
 
+// Direct route for quiz publishing (to handle the 404 issue)
+app.put('/quizzes/:id/publish', (req, res) => {
+  console.log('Direct publish route hit, redirecting to correct endpoint');
+  // Forward this request to the correct route
+  req.url = `/api/quizzes/${req.params.id}/publish`;
+  quizRoutes(req, res);
+});
+
 // Basic route for testing
 app.get('/', (req, res) => {
   res.json({ message: 'TestCraft.ai API is running' });
