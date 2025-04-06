@@ -12,7 +12,9 @@ import {
   ClockIcon,
   BookOpenIcon,
   AcademicCapIcon,
-  QuestionMarkCircleIcon
+  QuestionMarkCircleIcon,
+  ClipboardDocumentIcon,
+  LinkIcon
 } from '@heroicons/react/24/outline';
 import DeleteQuizModal from './DeleteQuizModal';
 
@@ -34,6 +36,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
   } = quiz;
 
   const [isLoading, setIsLoading] = React.useState(false);
+  const [copied, setCopied] = React.useState({ code: false, url: false });
 
   // Capitalize first letter of title and description
   const capitalizeFirstLetter = (str) => {
@@ -149,6 +152,38 @@ const QuizCard = ({ quiz, onStatusChange }) => {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Copy access code or URL to clipboard
+  const copyToClipboard = (text, type) => {
+    if (!text) return;
+    
+    navigator.clipboard.writeText(text)
+      .then(() => {
+        // Set copied state for this type
+        setCopied({...copied, [type]: true});
+        
+        // Reset after 2 seconds
+        setTimeout(() => {
+          setCopied({...copied, [type]: false});
+        }, 2000);
+        
+        toast.success(`${type === 'code' ? 'Access code' : 'Quiz URL'} copied to clipboard`);
+      })
+      .catch(err => {
+        console.error('Failed to copy:', err);
+        toast.error('Failed to copy to clipboard');
+      });
+  };
+
+  // Generate the shareable URL for the quiz
+  const getQuizUrl = () => {
+    const quizCode = access_code || settings?.accessCode;
+    if (!quizCode || status !== 'published') return null;
+    
+    // Get base URL (works in production and development)
+    const baseUrl = window.location.origin;
+    return `${baseUrl}/quiz/${quizCode}/take`;
   };
 
   return (
@@ -324,6 +359,45 @@ const QuizCard = ({ quiz, onStatusChange }) => {
               </span>
             </div>
           </div>
+
+          {/* Sharing Information (Only for published quizzes) */}
+          {status === 'published' && (access_code || settings?.accessCode) && (
+            <div className="mt-4 pt-3 border-t border-gray-100">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">Share with learners:</h3>
+              
+              {/* Access Code */}
+              <div className="flex items-center justify-between bg-gray-50 rounded-md px-3 py-2 mb-2">
+                <div className="flex items-center">
+                  <span className="text-xs text-gray-500 mr-2">Access Code:</span>
+                  <span className="text-sm font-mono font-medium">{access_code || settings?.accessCode}</span>
+                </div>
+                <button 
+                  onClick={() => copyToClipboard(access_code || settings?.accessCode, 'code')}
+                  className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full transition-colors"
+                  title="Copy access code"
+                >
+                  <ClipboardDocumentIcon className="w-4 h-4" />
+                  {copied.code && <span className="sr-only">Copied!</span>}
+                </button>
+              </div>
+              
+              {/* Quiz URL */}
+              <div className="flex items-center justify-between bg-gray-50 rounded-md px-3 py-2">
+                <div className="flex items-center truncate max-w-[85%]">
+                  <span className="text-xs text-gray-500 mr-2">Quiz URL:</span>
+                  <span className="text-sm truncate">{getQuizUrl()}</span>
+                </div>
+                <button 
+                  onClick={() => copyToClipboard(getQuizUrl(), 'url')}
+                  className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
+                  title="Copy quiz URL"
+                >
+                  <LinkIcon className="w-4 h-4" />
+                  {copied.url && <span className="sr-only">Copied!</span>}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
