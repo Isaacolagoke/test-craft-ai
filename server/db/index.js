@@ -231,13 +231,26 @@ async function getQuestions(quizId) {
  */
 async function createQuiz(creatorId, title, description, settings) {
   try {
+    // Handle settings properly - it could be a string or an object
+    let settingsObj;
+    if (typeof settings === 'string') {
+      try {
+        settingsObj = JSON.parse(settings);
+      } catch (e) {
+        console.warn('Error parsing settings string, using as-is:', e);
+        settingsObj = settings;
+      }
+    } else {
+      settingsObj = settings || {};
+    }
+
     const { data, error } = await supabase
       .from('quizzes')
       .insert({
         creator_id: creatorId,
         title,
         description,
-        settings: settings ? JSON.parse(settings) : {},
+        settings: settingsObj,
         status: 'draft'
       })
       .select()
@@ -255,20 +268,33 @@ async function createQuiz(creatorId, title, description, settings) {
  * Create a new question
  * @param {number} quizId - Quiz ID
  * @param {string} type - Question type
- * @param {string} text - Question text
+ * @param {string} text - Question text (may be passed as 'content' from frontend)
  * @param {string} options - JSON options string
  * @param {string} correctAnswer - Correct answer
  * @returns {Promise<Object>} - Returns the created question
  */
 async function createQuestion(quizId, type, text, options, correctAnswer) {
   try {
+    // Handle options properly - it could be a string or an array
+    let optionsArray;
+    if (typeof options === 'string') {
+      try {
+        optionsArray = JSON.parse(options);
+      } catch (e) {
+        console.warn('Error parsing options string, using as-is:', e);
+        optionsArray = options;
+      }
+    } else {
+      optionsArray = options || [];
+    }
+
     const { data, error } = await supabase
       .from('questions')
       .insert({
         quiz_id: quizId,
         type,
-        text,
-        options: options ? JSON.parse(options) : [],
+        text, // The frontend might pass this as 'content', but it's already mapped in the router
+        options: optionsArray,
         correct_answer: correctAnswer
       })
       .select()
