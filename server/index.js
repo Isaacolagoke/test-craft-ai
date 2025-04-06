@@ -1,7 +1,6 @@
 require('dotenv').config();
 
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const path = require('path');
@@ -11,7 +10,9 @@ const fs = require('fs');
 const authRoutes = require('./routes/auth');
 const quizRoutes = require('./routes/quizzes');
 const statisticsRoutes = require('./routes/statistics');
-const db = require('./db');
+const db = require('./db/index');
+
+const supabase = require('./db/supabase');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -47,6 +48,23 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Check database connection
+async function checkDatabaseConnection() {
+  try {
+    const { data, error } = await supabase.from('users').select('count').limit(1);
+    if (error) {
+      console.error('Supabase connection error:', error);
+    } else {
+      console.log('Successfully connected to Supabase');
+    }
+  } catch (err) {
+    console.error('Failed to connect to Supabase:', err);
+  }
+}
+
+// Validate the database connection when the server starts
+checkDatabaseConnection();
+
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/quizzes', quizRoutes);
@@ -69,82 +87,8 @@ app.use((err, req, res, next) => {
 
 // Initialize database tables
 function initializeDatabase() {
-  console.log('Initializing database with fresh schema...');
-  return new Promise((resolve, reject) => {
-    db.serialize(() => {
-      try {
-        // Users table
-        db.run(`CREATE TABLE IF NOT EXISTS users (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          name TEXT NOT NULL,
-          email TEXT UNIQUE NOT NULL,
-          password TEXT NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )`);
-
-        // Quizzes table
-        db.run(`CREATE TABLE IF NOT EXISTS quizzes (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          title TEXT NOT NULL,
-          description TEXT,
-          creator_id INTEGER NOT NULL,
-          settings TEXT,
-          image_url TEXT,
-          status TEXT DEFAULT 'draft',
-          access_code TEXT UNIQUE,
-          published_at DATETIME,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (creator_id) REFERENCES users (id)
-        )`);
-
-        // Questions table
-        db.run(`CREATE TABLE IF NOT EXISTS questions (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          quiz_id INTEGER NOT NULL,
-          type TEXT NOT NULL,
-          content TEXT NOT NULL,
-          options TEXT,
-          correct_answer TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (quiz_id) REFERENCES quizzes (id)
-        )`);
-
-        // Responses table
-        db.run(`CREATE TABLE IF NOT EXISTS responses (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          quiz_id INTEGER NOT NULL,
-          user_id INTEGER NOT NULL,
-          answers TEXT NOT NULL,
-          score REAL,
-          completed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (quiz_id) REFERENCES quizzes (id),
-          FOREIGN KEY (user_id) REFERENCES users (id)
-        )`);
-
-        // Feedback table
-        db.run(`CREATE TABLE IF NOT EXISTS feedback (
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          quiz_id INTEGER NOT NULL,
-          user_id INTEGER NOT NULL,
-          content TEXT NOT NULL,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY (quiz_id) REFERENCES quizzes (id),
-          FOREIGN KEY (user_id) REFERENCES users (id)
-        )`, (err) => {
-          if (err) {
-            console.error('Error creating tables:', err);
-            reject(err);
-          } else {
-            console.log('Database schema initialized successfully');
-            resolve();
-          }
-        });
-      } catch (error) {
-        console.error('Error in database initialization:', error);
-        reject(error);
-      }
-    });
-  });
+  console.log('Database tables are managed by Supabase');
+  // For reference only - tables were created with the schema.sql file
 }
 
 // Authentication Middleware

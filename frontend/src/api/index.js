@@ -10,6 +10,9 @@ const api = axios.create({
   withCredentials: true // Important for cookies/sessions
 });
 
+// Log API configuration for debugging
+console.log('API baseURL:', api.defaults.baseURL);
+
 // Add auth token to requests if available
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');

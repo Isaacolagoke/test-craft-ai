@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
+const db = require("../db/index");
 
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
 
@@ -18,6 +19,16 @@ const authenticateToken = (req, res, next) => {
         
         const decoded = jwt.verify(token, secret);
         console.log("Token verified, user ID:", decoded.id);
+        
+        // Verify that the user exists in the database
+        const user = await db.get('users', { id: decoded.id });
+        
+        if (!user) {
+            return res.status(403).json({
+                success: false,
+                error: "User not found"
+            });
+        }
         
         req.user = decoded;
         next();

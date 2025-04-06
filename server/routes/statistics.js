@@ -1,6 +1,6 @@
 const express = require('express')
 const router = express.Router()
-const db = require('../db')
+const db = require('../db/index')
 const { authenticateToken } = require('../middleware/auth')
 
 // Get quiz statistics
@@ -8,36 +8,49 @@ router.get('/', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id
 
-    // Get total quizzes and published count
-    const quizStats = await db.get(
-      'SELECT COUNT(*) as total, SUM(CASE WHEN status = "published" THEN 1 ELSE 0 END) as published FROM quizzes WHERE creator_id = ?',
-      [userId]
-    )
-
-    // Get quizzes with responses and total responses
-    const responseStats = await db.get(
-      `SELECT 
-        COUNT(DISTINCT q.id) as with_responses,
-        COUNT(r.id) as total_responses,
-        COALESCE(AVG(r.score), 0) as average_score,
-        COALESCE(
-          (SUM(CASE WHEN r.completed_at IS NOT NULL THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0)),
-          0
-        ) as completion_rate
-      FROM quizzes q
-      LEFT JOIN responses r ON q.id = r.quiz_id
-      WHERE q.creator_id = ?`,
-      [userId]
-    )
+    // Get user's quizzes
+    const quizzes = await db.getQuizzes(userId);
+    
+    // Calculate statistics from quizzes
+    const totalQuizzes = quizzes.length;
+    const publishedQuizzes = quizzes.filter(quiz => quiz.status === 'published').length;
+    
+    // Get all responses for the user's quizzes
+    let totalResponses = 0;
+    let quizzesWithResponses = new Set();
+    let totalScores = 0;
+    let completedResponses = 0;
+    
+    // Process each quiz to get its responses
+    for (const quiz of quizzes) {
+      const responses = await db.all('responses', { quiz_id: quiz.id });
+      
+      if (responses.length > 0) {
+        quizzesWithResponses.add(quiz.id);
+      }
+      
+      totalResponses += responses.length;
+      
+      // Calculate average score and completion rate
+      responses.forEach(response => {
+        if (response.score !== null) {
+          totalScores += response.score;
+          completedResponses++;
+        }
+      });
+    }
+    
+    const averageScore = totalResponses > 0 ? Math.round(totalScores / totalResponses) : 0;
+    const completionRate = totalResponses > 0 ? Math.round((completedResponses / totalResponses) * 100) : 0;
 
     res.json({
       stats: {
-        total: parseInt(quizStats.total || 0),
-        published: parseInt(quizStats.published || 0),
-        withResponses: parseInt(responseStats.with_responses || 0),
-        totalResponses: parseInt(responseStats.total_responses || 0),
-        averageScore: Math.round(parseFloat(responseStats.average_score || 0)),
-        completionRate: Math.round(parseFloat(responseStats.completion_rate || 0))
+        total: totalQuizzes,
+        published: publishedQuizzes,
+        withResponses: quizzesWithResponses.size,
+        totalResponses: totalResponses,
+        averageScore: averageScore,
+        completionRate: completionRate
       }
     })
   } catch (err) {
@@ -46,4 +59,4 @@ router.get('/', authenticateToken, async (req, res) => {
   }
 })
 
-module.exports = router 
+module.exports = router

@@ -5,7 +5,7 @@ const { authenticateToken } = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs'); // Added fs module
-const { get, all, run } = require('../db');
+const db = require('../db/index');
 
 // Initialize Gemini with configuration
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
@@ -162,10 +162,7 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
     console.log('Updating quiz status:', { id, isAcceptingResponses, userId });
 
     // Check if quiz exists and belongs to user
-    const quiz = await get(
-      'SELECT * FROM quizzes WHERE id = ? AND creator_id = ?',
-      [id, userId]
-    );
+    const quiz = await db.getQuiz(id, userId);
 
     if (!quiz) {
       console.log('Quiz not found or unauthorized:', { id, userId });
@@ -176,10 +173,7 @@ router.put('/:id/status', authenticateToken, async (req, res) => {
     }
 
     // Update quiz status
-    await run(
-      'UPDATE quizzes SET is_accepting_responses = ? WHERE id = ?',
-      [isAcceptingResponses ? 1 : 0, id]
-    );
+    await db.updateQuizStatus(id, isAcceptingResponses);
 
     console.log('Quiz status updated successfully:', { id, isAcceptingResponses });
 
@@ -204,17 +198,11 @@ router.get('/', authenticateToken, async (req, res) => {
     console.log('Fetching quizzes for user:', userId);
     
     // First get all quizzes
-    const quizzes = await all(
-      'SELECT * FROM quizzes WHERE creator_id = ? ORDER BY created_at DESC',
-      [userId]
-    );
+    const quizzes = await db.getQuizzes(userId);
 
     // For each quiz, get its questions
     const quizzesWithQuestions = await Promise.all(quizzes.map(async (quiz) => {
-      const questions = await all(
-        'SELECT * FROM questions WHERE quiz_id = ?',
-        [quiz.id]
-      );
+      const questions = await db.getQuestions(quiz.id);
 
       // Parse settings from JSON string if it exists
       let settings = {};
@@ -245,7 +233,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     const userId = req.user.id;
 
     // Get quiz with questions
-    const quiz = await get('SELECT * FROM quizzes WHERE id = ?', [id]);
+    const quiz = await db.getQuiz(id, userId);
     
     if (!quiz) {
       return res.status(404).json({
@@ -263,7 +251,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
     }
 
     // Get questions
-    const questions = await all('SELECT * FROM questions WHERE quiz_id = ?', [id]);
+    const questions = await db.getQuestions(id);
 
     // Parse settings and question options
     let settings = {};
@@ -305,32 +293,20 @@ router.post('/', authenticateToken, async (req, res) => {
     const userId = req.user.id;
 
     // Insert quiz - removing imageUrl from SQL statement since the column doesn't exist
-    const result = await run(
-      'INSERT INTO quizzes (creator_id, title, description, settings) VALUES (?, ?, ?, ?)',
-      [userId, title, description, JSON.stringify(settings)]
-    );
+    const result = await db.createQuiz(userId, title, description, JSON.stringify(settings));
 
     const quizId = result.id;
 
     // Insert questions if provided
     if (questions && questions.length > 0) {
       for (const question of questions) {
-        await run(
-          'INSERT INTO questions (quiz_id, type, content, options, correct_answer) VALUES (?, ?, ?, ?, ?)',
-          [
-            quizId,
-            question.type,
-            question.text || question.content, // Support both field names
-            JSON.stringify(question.options),
-            question.correctAnswer
-          ]
-        );
+        await db.createQuestion(quizId, question.type, question.text || question.content, JSON.stringify(question.options), question.correctAnswer);
       }
     }
 
     // Get the created quiz with questions
-    const quiz = await get('SELECT * FROM quizzes WHERE id = ?', [quizId]);
-    const quizQuestions = await all('SELECT * FROM questions WHERE quiz_id = ?', [quizId]);
+    const quiz = await db.getQuiz(quizId, userId);
+    const quizQuestions = await db.getQuestions(quizId);
 
     // Parse settings
     let parsedSettings = {};
@@ -372,10 +348,7 @@ router.put('/:id', authenticateToken, async (req, res) => {
     const { title, description } = req.body;
     const userId = req.user.id;
     
-    const quiz = await get(
-      'SELECT * FROM quizzes WHERE id = ? AND creator_id = ?',
-      [id, userId]
-    );
+    const quiz = await db.getQuiz(id, userId);
     
     if (!quiz) {
       return res.status(404).json({
@@ -383,11 +356,8 @@ router.put('/:id', authenticateToken, async (req, res) => {
       });
     }
     
-    await run(
-      'UPDATE quizzes SET title = ?, description = ? WHERE id = ?',
-      [title, description, id]
-    );
-    
+    await db.updateQuiz(id, title, description);
+
     res.json({
       id,
       title,
@@ -407,10 +377,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     const userId = req.user.id;
 
     // Check if quiz exists and belongs to user
-    const quiz = await get(
-      'SELECT * FROM quizzes WHERE id = ? AND creator_id = ?',
-      [id, userId]
-    );
+    const quiz = await db.getQuiz(id, userId);
 
     if (!quiz) {
       return res.status(404).json({
@@ -420,7 +387,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
     }
 
     // Delete quiz (questions will be deleted automatically due to ON DELETE CASCADE)
-    await run('DELETE FROM quizzes WHERE id = ?', [id]);
+    await db.deleteQuiz(id);
 
     res.json({
       success: true,
@@ -795,10 +762,7 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
     const userId = req.user.id;
 
     // Check if quiz exists and belongs to user
-    const quiz = await get(
-      'SELECT * FROM quizzes WHERE id = ? AND creator_id = ?',
-      [id, userId]
-    );
+    const quiz = await db.getQuiz(id, userId);
 
     if (!quiz) {
       return res.status(404).json({
@@ -808,10 +772,7 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
     }
 
     // Check if quiz has questions
-    const questions = await all(
-      'SELECT * FROM questions WHERE quiz_id = ?',
-      [id]
-    );
+    const questions = await db.getQuestions(id);
 
     if (!questions || questions.length === 0) {
       return res.status(400).json({
@@ -845,15 +806,12 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
       settings.accessCode = accessCode;
       
       // Update quiz with settings containing access code
-      await run(
-        'UPDATE quizzes SET settings = ? WHERE id = ?',
-        [JSON.stringify(settings), id]
-      );
+      await db.updateQuizSettings(id, JSON.stringify(settings));
     }
 
     // Make sure image URLs are preserved
     // Get the original quiz data to ensure we have all image information
-    const quizData = await get('SELECT * FROM quizzes WHERE id = ?', [id]);
+    const quizData = await db.getQuiz(id);
   
     // Check if there's image data that needs to be preserved
     if (quizData.image_url || quizData.imageUrl || quizData.image) {
@@ -861,20 +819,14 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
       settings.imageUrl = quizData.image_url || quizData.imageUrl || quizData.image;
       
       // Update quiz with settings containing both access code and image URL
-      await run(
-        'UPDATE quizzes SET settings = ? WHERE id = ?',
-        [JSON.stringify(settings), id]
-      );
+      await db.updateQuizSettings(id, JSON.stringify(settings));
     }
 
     // Create access link
     const accessLink = `${req.protocol}://${req.get('host')}/take-quiz/${accessCode}`;
 
     // Update quiz status to published
-    await run(
-      'UPDATE quizzes SET status = ?, published_at = CURRENT_TIMESTAMP WHERE id = ?',
-      ['published', id]
-    );
+    await db.updateQuizStatus(id, 'published');
 
     res.json({
       success: true,
@@ -900,10 +852,7 @@ router.put('/:id/pause', authenticateToken, async (req, res) => {
     const userId = req.user.id;
 
     // Check if quiz exists and belongs to user
-    const quiz = await get(
-      'SELECT * FROM quizzes WHERE id = ? AND creator_id = ?',
-      [id, userId]
-    );
+    const quiz = await db.getQuiz(id, userId);
 
     if (!quiz) {
       return res.status(404).json({
@@ -913,14 +862,11 @@ router.put('/:id/pause', authenticateToken, async (req, res) => {
     }
 
     // Update quiz status
-    await run(
-      'UPDATE quizzes SET status = ? WHERE id = ?',
-      ['draft', id]
-    );
+    await db.updateQuizStatus(id, 'draft');
 
     // Get updated quiz
-    const updatedQuiz = await get('SELECT * FROM quizzes WHERE id = ?', [id]);
-    const questions = await all('SELECT * FROM questions WHERE quiz_id = ?', [id]);
+    const updatedQuiz = await db.getQuiz(id);
+    const questions = await db.getQuestions(id);
 
     // Parse settings
     let settings = {};
@@ -961,8 +907,8 @@ router.get('/access/:code', async (req, res) => {
     }
     
     // Since database.sqlite doesn't have an access_code column, we need to search in settings
-    const quizzes = await all('SELECT * FROM quizzes WHERE status = ?', ['published']);
-    console.log(`Found ${quizzes.length} published quizzes. Searching for code: ${accessCode}`);
+    const quizzes = await db.getQuizzes();
+    console.log(`Found ${quizzes.length} quizzes. Searching for code: ${accessCode}`);
     
     // Find the quiz with matching access code in settings JSON
     let matchedQuiz = null;
@@ -996,7 +942,7 @@ router.get('/access/:code', async (req, res) => {
     }
     
     // Get user info for the creator
-    const user = await get('SELECT id, name FROM users WHERE id = ?', [matchedQuiz.creator_id]);
+    const user = await db.getUser(matchedQuiz.creator_id);
     matchedQuiz.creator_name = user ? user.name : 'Unknown';
     
     console.log('Quiz found:', { 
@@ -1006,10 +952,7 @@ router.get('/access/:code', async (req, res) => {
     });
 
     // Get quiz questions
-    const questions = await all(
-      'SELECT * FROM questions WHERE quiz_id = ?',
-      [matchedQuiz.id]
-    );
+    const questions = await db.getQuestions(matchedQuiz.id);
 
     // Parse questions options
     const parsedQuestions = questions.map(q => ({
@@ -1062,8 +1005,8 @@ router.get('/share/:code', async (req, res) => {
     }
     
     // Search for quizzes and get all of them
-    const quizzes = await all('SELECT * FROM quizzes WHERE status = ?', ['published']);
-    console.log(`Found ${quizzes.length} published quizzes. Searching for share code: ${accessCode}`);
+    const quizzes = await db.getQuizzes();
+    console.log(`Found ${quizzes.length} quizzes. Searching for share code: ${accessCode}`);
     
     // Find the quiz with matching access code in settings
     let matchedQuiz = null;
@@ -1088,14 +1031,11 @@ router.get('/share/:code', async (req, res) => {
     }
     
     // Get user info for the creator
-    const user = await get('SELECT id, name FROM users WHERE id = ?', [matchedQuiz.creator_id]);
+    const user = await db.getUser(matchedQuiz.creator_id);
     matchedQuiz.creator_name = user ? user.name : 'Unknown';
 
     // Get quiz questions
-    const questions = await all(
-      'SELECT * FROM questions WHERE quiz_id = ?',
-      [matchedQuiz.id]
-    );
+    const questions = await db.getQuestions(matchedQuiz.id);
 
     // Parse questions options
     const parsedQuestions = questions.map(q => ({
@@ -1145,7 +1085,7 @@ router.post('/:id/submit', authenticateToken, async (req, res) => {
       WHERE qu.id = ?
     `;
 
-    const quiz = await get(query, [quizId]);
+    const quiz = await db.getQuiz(quizId);
     if (!quiz) {
       return res.status(404).json({
         success: false,
@@ -1155,7 +1095,7 @@ router.post('/:id/submit', authenticateToken, async (req, res) => {
 
     // Calculate score
     let score = 0;
-    const questions = JSON.parse(quiz.quiz_questions);
+    const questions = JSON.parse(quiz.questions);
     const settings = JSON.parse(quiz.settings);
       
     answers.forEach((answer, index) => {
@@ -1178,12 +1118,7 @@ router.post('/:id/submit', authenticateToken, async (req, res) => {
       ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
     `;
 
-    await run(saveQuery, [
-      quizId,
-      req.user.id,
-      JSON.stringify(answers),
-      percentage
-    ]);
+    await db.saveResponse(quizId, req.user.id, JSON.stringify(answers), percentage);
 
     res.json({
       success: true,
@@ -1222,8 +1157,8 @@ router.post('/submit/:code', async (req, res) => {
     }
     
     // Since database.sqlite doesn't have an access_code column, we need to search in settings
-    const quizzes = await all('SELECT * FROM quizzes WHERE status = ?', ['published']);
-    console.log(`Found ${quizzes.length} published quizzes. Searching for code: ${accessCode}`);
+    const quizzes = await db.getQuizzes();
+    console.log(`Found ${quizzes.length} quizzes. Searching for code: ${accessCode}`);
     
     // Find the quiz with matching access code in settings JSON
     let matchedQuiz = null;
@@ -1257,7 +1192,7 @@ router.post('/submit/:code', async (req, res) => {
     }
     
     // Get the questions for the quiz
-    const questions = await all('SELECT * FROM questions WHERE quiz_id = ?', [matchedQuiz.id]);
+    const questions = await db.getQuestions(matchedQuiz.id);
     
     // Parse the options for each question
     const parsedQuestions = questions.map(q => ({
@@ -1338,7 +1273,7 @@ router.get('/:id/submissions', authenticateToken, async (req, res) => {
     // First, verify that the user is the owner of the quiz
     try {
       const quizQuery = 'SELECT * FROM quizzes WHERE id = ?';
-      const quiz = await get(quizQuery, [quizId]);
+      const quiz = await db.getQuiz(quizId, userId);
       
       console.log('Quiz found:', quiz ? 'Yes' : 'No');
       
@@ -1374,7 +1309,7 @@ router.get('/:id/submissions', authenticateToken, async (req, res) => {
         SELECT name FROM sqlite_master 
         WHERE type='table' AND name='responses'
       `;
-      const tableExists = await get(tableCheckQuery);
+      const tableExists = await db.getTable(tableCheckQuery);
       console.log('Responses table exists:', tableExists ? 'Yes' : 'No');
       
       if (!tableExists) {
@@ -1392,7 +1327,7 @@ router.get('/:id/submissions', authenticateToken, async (req, res) => {
             FOREIGN KEY (user_id) REFERENCES users(id)
           )
         `;
-        await run(createTableQuery);
+        await db.createTable(createTableQuery);
         console.log('Responses table created successfully');
       }
     } catch (err) {
@@ -1409,7 +1344,7 @@ router.get('/:id/submissions', authenticateToken, async (req, res) => {
         ORDER BY r.submitted_at DESC
       `;
       
-      const submissions = await all(submissionsQuery, [quizId]);
+      const submissions = await db.getSubmissions(submissionsQuery, quizId);
       console.log(`Found ${submissions.length} submissions for quiz ${quizId}`);
       
       // Parse the answers field for each submission
@@ -1421,7 +1356,7 @@ router.get('/:id/submissions', authenticateToken, async (req, res) => {
       
       // Get the questions to include with the submissions
       const questionsQuery = 'SELECT * FROM questions WHERE quiz_id = ?';
-      const questions = await all(questionsQuery, [quizId]);
+      const questions = await db.getQuestions(quizId);
       console.log(`Found ${questions.length} questions for quiz ${quizId}`);
       
       // Parse options for each question
@@ -1432,7 +1367,7 @@ router.get('/:id/submissions', authenticateToken, async (req, res) => {
       
       // Get the quiz details again
       const quizDetailQuery = 'SELECT * FROM quizzes WHERE id = ?';
-      const quizDetail = await get(quizDetailQuery, [quizId]);
+      const quizDetail = await db.getQuiz(quizId);
       
       res.json({
         success: true,
