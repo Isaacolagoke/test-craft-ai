@@ -179,12 +179,23 @@ const QuizCard = ({ quiz, onStatusChange }) => {
   // Generate the shareable URL for the quiz
   const getQuizUrl = () => {
     const quizCode = access_code || settings?.accessCode;
+    console.log('getQuizUrl for quiz ID ' + id + ':', { quizCode, status });
     if (!quizCode || status !== 'published') return null;
     
     // Get base URL (works in production and development)
     const baseUrl = window.location.origin;
     return `${baseUrl}/quiz/${quizCode}/take`;
   };
+
+  // Debug what we actually have for settings, status, and access code
+  React.useEffect(() => {
+    console.log('Quiz card data for ID ' + id + ':', {
+      status,
+      accessCode: access_code, 
+      settingsAccessCode: settings?.accessCode,
+      settings
+    });
+  }, [id, status, access_code, settings]);
 
   return (
     <>
@@ -360,8 +371,8 @@ const QuizCard = ({ quiz, onStatusChange }) => {
             </div>
           </div>
 
-          {/* Sharing Information (Only for published quizzes) */}
-          {status === 'published' && (access_code || settings?.accessCode) && (
+          {/* Sharing Information (For any published quiz) */}
+          {status === 'published' && (
             <div className="mt-4 pt-3 border-t border-gray-100">
               <h3 className="text-sm font-medium text-gray-700 mb-2">Share with learners:</h3>
               
@@ -369,12 +380,13 @@ const QuizCard = ({ quiz, onStatusChange }) => {
               <div className="flex items-center justify-between bg-gray-50 rounded-md px-3 py-2 mb-2">
                 <div className="flex items-center">
                   <span className="text-xs text-gray-500 mr-2">Access Code:</span>
-                  <span className="text-sm font-mono font-medium">{access_code || settings?.accessCode}</span>
+                  <span className="text-sm font-mono font-medium">{access_code || settings?.accessCode || 'Waiting for code...'}</span>
                 </div>
                 <button 
                   onClick={() => copyToClipboard(access_code || settings?.accessCode, 'code')}
                   className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full transition-colors"
                   title="Copy access code"
+                  disabled={!(access_code || settings?.accessCode)}
                 >
                   <ClipboardDocumentIcon className="w-4 h-4" />
                   {copied.code && <span className="sr-only">Copied!</span>}
@@ -385,12 +397,13 @@ const QuizCard = ({ quiz, onStatusChange }) => {
               <div className="flex items-center justify-between bg-gray-50 rounded-md px-3 py-2">
                 <div className="flex items-center truncate max-w-[85%]">
                   <span className="text-xs text-gray-500 mr-2">Quiz URL:</span>
-                  <span className="text-sm truncate">{getQuizUrl()}</span>
+                  <span className="text-sm truncate">{getQuizUrl() || 'Waiting for URL...'}</span>
                 </div>
                 <button 
                   onClick={() => copyToClipboard(getQuizUrl(), 'url')}
                   className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
                   title="Copy quiz URL"
+                  disabled={!getQuizUrl()}
                 >
                   <LinkIcon className="w-4 h-4" />
                   {copied.url && <span className="sr-only">Copied!</span>}

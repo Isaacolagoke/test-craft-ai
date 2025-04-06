@@ -813,11 +813,18 @@ function shuffleArray(array) {
 // Publish quiz
 router.put('/:id/publish', authenticateToken, async (req, res) => {
   try {
+    console.log('Publish endpoint hit with params:', req.params);
+    console.log('User in token:', req.user);
+    
     const { id } = req.params;
     const userId = req.user.id;
 
+    console.log(`Attempting to publish quiz ${id} for user ${userId}`);
+
     // Check if quiz exists and belongs to user
     const quiz = await db.getQuiz(id, userId);
+    
+    console.log('Quiz found:', quiz ? `ID: ${quiz.id}` : 'Not found');
 
     if (!quiz) {
       return res.status(404).json({
@@ -828,6 +835,7 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
 
     // Check if quiz has questions
     const questions = await db.getQuestions(id);
+    console.log(`Found ${questions ? questions.length : 0} questions for quiz`);
 
     if (!questions || questions.length === 0) {
       return res.status(400).json({
@@ -842,13 +850,20 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
     let settings = {};
     
     try {
+      console.log('Original quiz settings:', quiz.settings);
+      
       // Parse settings if available
       if (quiz.settings) {
-        settings = JSON.parse(quiz.settings);
+        if (typeof quiz.settings === 'string') {
+          settings = JSON.parse(quiz.settings);
+        } else {
+          settings = quiz.settings;
+        }
       }
       
       // Check if access code exists in settings
       accessCode = settings.accessCode;
+      console.log('Existing access code:', accessCode);
     } catch (e) {
       console.error('Error parsing settings:', e);
     }
@@ -856,40 +871,30 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
     if (!accessCode) {
       // Generate a 6-character alphanumeric code
       accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      console.log('Generated new access code:', accessCode);
       
       // Store the access code in settings since we don't have an access_code column
       settings.accessCode = accessCode;
-      
-      // Update quiz with settings containing access code
-      await db.updateQuizSettings(id, JSON.stringify(settings));
     }
 
-    // Make sure image URLs are preserved
-    // Get the original quiz data to ensure we have all image information
-    const quizData = await db.getQuiz(id);
-  
-    // Check if there's image data that needs to be preserved
-    if (quizData.image_url || quizData.imageUrl || quizData.image) {
-      // Update settings to include the image URL
-      settings.imageUrl = quizData.image_url || quizData.imageUrl || quizData.image;
-      
-      // Update quiz with settings containing both access code and image URL
-      await db.updateQuizSettings(id, JSON.stringify(settings));
-    }
+    // Update the quiz with the published status and access code in settings
+    console.log('Updating quiz with settings:', settings);
+    const result = await db.updateQuiz(id, {
+      status: 'published',
+      settings: settings
+    });
 
-    // Create access link
-    const accessLink = `${req.protocol}://${req.get('host')}/take-quiz/${accessCode}`;
-
-    // Update quiz status to published
-    await db.updateQuizStatus(id, 'published');
+    console.log('Update result:', result);
 
     res.json({
       success: true,
+      quiz: {
+        ...result,
+        settings: settings
+      },
       message: 'Quiz published successfully',
-      accessCode: accessCode,
-      accessLink: accessLink
+      accessCode: accessCode
     });
-
   } catch (error) {
     console.error('Error publishing quiz:', error);
     res.status(500).json({

@@ -340,13 +340,13 @@ async function createQuestion(quizId, type, text, options, correctAnswer) {
 }
 
 /**
- * Update a quiz
- * @param {number} id - Quiz ID
+ * Update quiz content (title and description)
+ * @param {number} id - Quiz ID 
  * @param {string} title - Quiz title
  * @param {string} description - Quiz description
  * @returns {Promise<Object>} - Returns updated quiz
  */
-async function updateQuiz(id, title, description) {
+async function updateQuizContent(id, title, description) {
   try {
     const { data, error } = await supabase
       .from('quizzes')
@@ -356,6 +356,51 @@ async function updateQuiz(id, title, description) {
       .single();
     
     if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error(`Error updating quiz ${id}:`, error);
+    throw error;
+  }
+}
+
+/**
+ * Update multiple quiz fields at once
+ * @param {number} id - Quiz ID
+ * @param {Object} updates - Object with fields to update
+ * @returns {Promise<Object>} - Returns updated quiz
+ */
+async function updateQuiz(id, updates) {
+  try {
+    console.log(`Updating quiz ${id} with:`, updates);
+    
+    // Handle settings correctly if it's included in the updates
+    if (updates.settings) {
+      if (typeof updates.settings === 'string') {
+        try {
+          updates.settings = JSON.parse(updates.settings);
+        } catch (e) {
+          console.warn('Error parsing settings string in updateQuiz:', e);
+        }
+      }
+      // Make sure settings is always an object
+      if (!updates.settings || typeof updates.settings !== 'object') {
+        updates.settings = {};
+      }
+    }
+    
+    const { data, error } = await supabase
+      .from('quizzes')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) {
+      console.error(`Error in updateQuiz for ${id}:`, error);
+      throw error;
+    }
+    
+    console.log(`Successfully updated quiz ${id}:`, data);
     return data;
   } catch (error) {
     console.error(`Error updating quiz ${id}:`, error);
@@ -565,6 +610,7 @@ module.exports = {
   getQuestions,
   createQuiz,
   createQuestion,
+  updateQuizContent,
   updateQuiz,
   updateQuizSettings,
   updateQuizStatus,

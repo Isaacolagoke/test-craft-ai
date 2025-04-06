@@ -78,9 +78,12 @@ const quizzes = {
   update: (id, data) => api.put(`/api/quizzes/${id}`, data),
   delete: (id) => api.delete(`/api/quizzes/${id}`),
   updateStatus: (id, data) => api.put(`/api/quizzes/${id}/status`, data),
-  publish: (id) => api.put(`/api/quizzes/${id}/publish`),
-  pause: (id) => api.put(`/api/quizzes/${id}/pause`),
-  resume: (id) => api.put(`/api/quizzes/${id}/resume`),
+  publish: (id) => {
+    console.log(`Publishing quiz with ID ${id} to ${api.defaults.baseURL}/api/quizzes/${id}/publish`);
+    return api.put(`/api/quizzes/${id}/publish`);
+  },
+  pause: (id) => api.put(`/api/quizzes/${id}/status`, { isAcceptingResponses: false }),
+  resume: (id) => api.put(`/api/quizzes/${id}/status`, { isAcceptingResponses: true }),
   generateQuestions: (params) => api.post('/api/quizzes/generate', params),
   uploadImage: (formData) => api.post('/api/quizzes/upload-image', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
