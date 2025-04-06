@@ -12,6 +12,7 @@ import { BellAlertIcon } from '@heroicons/react/24/solid'
 import logoText from '../assets/logo-text.svg'
 import axios from 'axios'
 import { useAuth } from '../context/AuthContext'
+import { Link } from 'react-router-dom'
 
 export default function DashboardLayout({ children }) {
   const [notifications, setNotifications] = React.useState([])
@@ -73,7 +74,9 @@ export default function DashboardLayout({ children }) {
         {/* Header */}
         <header className="fixed top-0 w-full max-w-[700px] bg-white border-b border-slate-200 z-10">
           <div className="h-16 px-4 sm:px-6 md:px-container-padding flex items-center justify-between">
-            <img src={logoText} alt="TestCraft.ai" className="h-6" />
+            <Link to="/dashboard" className="cursor-pointer">
+              <img src={logoText} alt="TestCraft.ai" className="h-6" />
+            </Link>
             
             <div className="flex items-center gap-4">
               {/* Notification Bell with Dropdown */}

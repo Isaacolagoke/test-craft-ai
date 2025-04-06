@@ -13,10 +13,27 @@ const api = axios.create({
 // Log API configuration for debugging
 console.log('API baseURL:', api.defaults.baseURL);
 
+// Helper function to check if token has expired
+const isTokenExpired = (token) => {
+  if (!token) return true;
+  
+  try {
+    // Split the token and get the payload
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    // Check if the expiration time is past
+    return payload.exp * 1000 < Date.now();
+  } catch (e) {
+    console.error('Error parsing token:', e);
+    return true;
+  }
+};
+
 // Add auth token to requests if available
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  
+  // Only use token if it exists and hasn't expired
+  if (token && !isTokenExpired(token)) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
@@ -28,12 +45,23 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
-      // Clear auth state on unauthorized/forbidden
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-      toast.error('Session expired. Please login again.');
+    // Only redirect to login for auth errors that aren't from the auth endpoints themselves
+    const isAuthRequest = error.config?.url?.includes('/auth/');
+    
+    if ((error.response?.status === 401 || error.response?.status === 403) && !isAuthRequest) {
+      // Don't redirect if already on login page to prevent redirect loops
+      if (!window.location.pathname.includes('login')) {
+        // Save current location for redirect after login
+        localStorage.setItem('redirectAfterLogin', window.location.pathname);
+        toast.error('Session expired. Please login again.');
+        
+        // Clear auth state on unauthorized/forbidden
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        
+        // Use soft navigation instead of hard redirect
+        window.location.href = '/login';
+      }
     }
     if (error.response?.status === 429) {
       toast.error('Too many requests. Please try again later.');

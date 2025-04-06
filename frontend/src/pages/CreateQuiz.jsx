@@ -441,16 +441,23 @@ export default function CreateQuiz() {
         imageUrl: quizData.imageUrl,
         // Ensure settings contains all the fields needed by the QuizCard component
         settings: {
-          ...quizData.settings,
-          category: quizData.category,
-          complexity: quizData.complexity,
-          duration: quizData.timeLimit, // Add duration which QuizCard looks for
-          timeUnit: quizData.timeUnit
+          category: quizData.category || '',
+          complexity: quizData.complexity || 'medium',
+          duration: quizData.timeLimit || 30,
+          timeUnit: quizData.timeUnit || 'minutes',
+          // Add any other settings the quiz might need
+          passingScore: quizData.passingScore || 60,
+          showCorrectAnswers: quizData.showCorrectAnswers || false,
+          randomizeQuestions: quizData.randomizeQuestions || false
         },
         questions: mappedQuestions // Use mapped questions with correct field names
       };
 
-      const response = await fetch(getApiUrl('/api/quizzes'), {
+      // Log structured payload for debugging
+      console.log('Structured payload:', quizPayload);
+
+      // Fix: use the correct API URL (removing the duplicate '/api')
+      const response = await fetch(getApiUrl('/quizzes'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -524,7 +531,7 @@ export default function CreateQuiz() {
       const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
       
       try {
-        const response = await fetch(getApiUrl(`/api/quizzes/${quizData.id}/publish`), {
+        const response = await fetch(getApiUrl(`/quizzes/${quizData.id}/publish`), {
           method: 'PUT', // Changed from POST to PUT to match the server route
           headers: {
             'Content-Type': 'application/json',
