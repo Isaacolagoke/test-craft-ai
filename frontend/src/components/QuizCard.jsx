@@ -126,7 +126,8 @@ const QuizCard = ({ quiz, onStatusChange }) => {
     
     // Get base URL (works in production and development)
     const baseUrl = window.location.origin;
-    return `${baseUrl}/quiz/${quizCode}/take`;
+    // Fix: Use the correct route path that matches App.jsx
+    return `${baseUrl}/quiz/${quizCode}`;
   };
 
   // Handle status change
@@ -141,13 +142,21 @@ const QuizCard = ({ quiz, onStatusChange }) => {
         const response = await quizzes.publish(id);
         console.log('Publish result:', response);
         
-        // Refresh quiz data from server response
-        if (response.data?.success) {
-          toast.success('Quiz published successfully');
-          if (onStatusChange) onStatusChange({ ...quiz, status: 'published' });
-        } else {
-          throw new Error('Failed to publish quiz');
+        // Extract the quiz data from the response
+        const updatedQuiz = response.data?.quiz || {};
+        
+        // Update the parent component with the new quiz data
+        if (onStatusChange) {
+          onStatusChange({
+            ...quiz,
+            status: 'published',
+            settings: updatedQuiz.settings || settings,
+            published_at: updatedQuiz.published_at || new Date().toISOString()
+          });
         }
+        
+        // Show success message
+        toast.success('Quiz published successfully');
       } else if (action === 'pause') {
         const response = await quizzes.pause(id);
         if (response.data?.success) {
