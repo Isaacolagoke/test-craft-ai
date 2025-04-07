@@ -71,11 +71,84 @@ app.use('/api/quizzes', quizRoutes);
 app.use('/api/statistics', statisticsRoutes);
 
 // Direct route for quiz publishing (to handle the 404 issue)
-app.put('/quizzes/:id/publish', (req, res) => {
+app.put('/quizzes/:id/publish', authenticateToken, async (req, res) => {
   console.log('Direct publish route hit, redirecting to correct endpoint');
-  // Forward this request to the correct route
-  req.url = `/api/quizzes/${req.params.id}/publish`;
-  quizRoutes(req, res);
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+
+    console.log(`Direct route: Attempting to publish quiz ${id} for user ${userId}`);
+
+    // Check if quiz exists and belongs to user
+    const quiz = await db.getQuiz(id, userId);
+    
+    if (!quiz) {
+      return res.status(404).json({
+        success: false,
+        error: 'Quiz not found or you do not have permission to modify it'
+      });
+    }
+
+    // Check if quiz has questions
+    const questions = await db.getQuestions(id);
+    if (!questions || questions.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Cannot publish quiz without questions'
+      });
+    }
+
+    // Generate a random access code if not already present
+    let accessCode = quiz.access_code;
+    let settings = {};
+    
+    try {
+      // Parse settings if available
+      if (quiz.settings) {
+        if (typeof quiz.settings === 'string') {
+          settings = JSON.parse(quiz.settings);
+        } else {
+          settings = quiz.settings;
+        }
+      }
+    } catch (e) {
+      console.error('Error parsing settings:', e);
+    }
+    
+    if (!accessCode) {
+      // Generate a 6-character alphanumeric code
+      accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+      console.log('Generated new access code:', accessCode);
+    }
+
+    // Only update fields that exist in the database schema
+    const updates = {
+      status: 'published',
+      published_at: new Date().toISOString(),
+      settings: settings,
+      access_code: accessCode  // Store access_code in its dedicated column
+    };
+
+    console.log('Updating quiz with:', JSON.stringify(updates));
+    
+    // Update the quiz with the published status and access code
+    const result = await db.updateQuiz(id, updates);
+    console.log('Update result:', result);
+
+    // Return success response
+    res.json({
+      success: true,
+      quiz: result,
+      message: 'Quiz published successfully'
+    });
+  } catch (error) {
+    console.error('Error in direct publish route:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to publish quiz',
+      details: error.message
+    });
+  }
 });
 
 // Basic route for testing
