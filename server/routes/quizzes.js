@@ -883,25 +883,37 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
       settings: settings
     };
 
-    console.log('Updating quiz with:', updates);
+    console.log('Updating quiz with:', JSON.stringify(updates));
     
-    // Update the quiz with the published status and access code
-    const result = await db.updateQuiz(id, updates);
+    try {
+      // Update the quiz with the published status and access code
+      const result = await db.updateQuiz(id, updates);
+      console.log('Update result:', result);
 
-    console.log('Update result:', result);
-
-    // Ensure consistent object structure in the response
-    res.json({
-      success: true,
-      quiz: {
-        ...result,
-        settings: settings
-      },
-      message: 'Quiz published successfully',
-      accessCode: accessCode // For backward compatibility
-    });
+      // Ensure consistent object structure in the response
+      res.json({
+        success: true,
+        quiz: {
+          ...result,
+          settings: settings
+        },
+        message: 'Quiz published successfully',
+        accessCode: accessCode // For backward compatibility
+      });
+    } catch (updateError) {
+      console.error('Error in db.updateQuiz:', updateError);
+      console.error('Error details:', updateError.message);
+      if (updateError.details) console.error('Additional details:', updateError.details);
+      
+      // Try to diagnose the Supabase error if possible
+      if (updateError.code) console.error('Error code:', updateError.code);
+      
+      throw updateError;
+    }
   } catch (error) {
     console.error('Error publishing quiz:', error);
+    console.error('Error message:', error.message);
+    console.error('Error stack:', error.stack);
     res.status(500).json({
       success: false,
       error: 'Failed to publish quiz',

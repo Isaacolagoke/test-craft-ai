@@ -79,29 +79,11 @@ const quizzes = {
   delete: (id) => api.delete(`/api/quizzes/${id}`),
   updateStatus: (id, data) => api.put(`/api/quizzes/${id}/status`, data),
   publish: (id) => {
-    // Get base URL from environment or use production URL as fallback
-    const baseUrl = import.meta.env.VITE_API_URL || 'https://testcraft-api.onrender.com';
+    // For direct debugging of the URL issue
+    console.log('Publishing quiz ID:', id);
     
-    // Create direct URL that explicitly includes /api path
-    const url = `${baseUrl}/api/quizzes/${id}/publish`;
-    console.log(`Publishing quiz with ID ${id} to ${url}`);
-    
-    // Get token from localStorage
-    const token = localStorage.getItem('token');
-    
-    // Make direct fetch request as a last resort to bypass any axios configuration issues
-    return fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': token ? `Bearer ${token}` : ''
-      }
-    }).then(response => {
-      if (!response.ok) {
-        throw new Error(`Server responded with status: ${response.status}`);
-      }
-      return response.json();
-    });
+    // Use the api.put method that's already configured properly with the correct baseURL
+    return api.put(`/api/quizzes/${id}/publish`);
   },
   pause: (id) => api.put(`/api/quizzes/${id}/status`, { isAcceptingResponses: false }),
   resume: (id) => api.put(`/api/quizzes/${id}/status`, { isAcceptingResponses: true }),
