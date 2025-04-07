@@ -844,8 +844,7 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
       });
     }
 
-    // Generate a random access code if not already present
-    let accessCode = quiz.access_code;
+    // Parse or initialize settings
     let settings = {};
     
     try {
@@ -859,22 +858,35 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
           settings = quiz.settings;
         }
       }
+      
+      // Check if accessCode exists in settings
+      let accessCode = settings.accessCode;
+      console.log('Existing access code:', accessCode);
+      
+      // Generate a new accessCode if not present
+      if (!accessCode) {
+        // Generate a 6-character alphanumeric code
+        accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
+        console.log('Generated new access code:', accessCode);
+        
+        // Store the access code in settings
+        settings.accessCode = accessCode;
+      }
     } catch (e) {
-      console.error('Error parsing settings:', e);
-    }
-    
-    if (!accessCode) {
-      // Generate a 6-character alphanumeric code
-      accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-      console.log('Generated new access code:', accessCode);
+      console.error('Error processing settings:', e);
+      // If there was an error, ensure we at least have a valid settings object with an accessCode
+      settings = {
+        ...settings,
+        accessCode: Math.random().toString(36).substring(2, 8).toUpperCase()
+      };
+      console.log('Created fallback settings with new access code:', settings.accessCode);
     }
 
     // Only update fields that exist in the database schema
     const updates = {
       status: 'published',
       published_at: new Date().toISOString(),
-      settings: settings,
-      access_code: accessCode  // Store access_code in its dedicated column
+      settings: settings
     };
 
     console.log('Updating quiz with:', JSON.stringify(updates));
@@ -887,8 +899,12 @@ router.put('/:id/publish', authenticateToken, async (req, res) => {
       // Ensure consistent object structure in the response
       res.json({
         success: true,
-        quiz: result,
-        message: 'Quiz published successfully'
+        quiz: {
+          ...result,
+          settings: settings
+        },
+        message: 'Quiz published successfully',
+        accessCode: settings.accessCode // For backward compatibility
       });
     } catch (updateError) {
       console.error('Error in db.updateQuiz:', updateError);
