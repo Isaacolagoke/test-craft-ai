@@ -37,8 +37,6 @@ const QuizCard = ({ quiz, onStatusChange }) => {
 
   const [isLoading, setIsLoading] = React.useState(false);
   const [copied, setCopied] = React.useState({ code: false, url: false });
-  const [localStatus, setStatus] = React.useState(status);
-  const [localSettings, setSettings] = React.useState(settings);
 
   // Capitalize first letter of title and description
   const capitalizeFirstLetter = (str) => {
@@ -50,27 +48,27 @@ const QuizCard = ({ quiz, onStatusChange }) => {
   const getDuration = () => {
     // Debug what we actually have for duration
     console.log('Duration data for quiz ID ' + id + ':', {
-      settingsDuration: localSettings?.duration,
-      settingsTimeUnit: localSettings?.timeUnit,
+      settingsDuration: settings?.duration,
+      settingsTimeUnit: settings?.timeUnit,
       quizTimeLimit: quiz.timeLimit,
       quizTimeUnit: quiz.timeUnit,
       accessCode: access_code,
-      rawSettings: localSettings
+      rawSettings: settings
     });
     
-    if (localSettings?.duration) return `${localSettings.duration} ${localSettings.timeUnit || 'minutes'}`;
+    if (settings?.duration) return `${settings.duration} ${settings.timeUnit || 'minutes'}`;
     if (quiz.timeLimit) return `${quiz.timeLimit} ${quiz.timeUnit || 'minutes'}`;
     return 'Duration not set';
   };
 
   const getDifficulty = () => {
-    if (localSettings?.complexity) return capitalizeFirstLetter(localSettings.complexity);
+    if (settings?.complexity) return capitalizeFirstLetter(settings.complexity);
     if (quiz.complexity) return capitalizeFirstLetter(quiz.complexity);
     return 'Difficulty not set';
   };
 
   const getCategory = () => {
-    if (localSettings?.category) return localSettings.category;
+    if (settings?.category) return settings.category;
     if (category || quiz.category) return category || quiz.category;
     return 'Subject not set';
   };
@@ -105,32 +103,26 @@ const QuizCard = ({ quiz, onStatusChange }) => {
   // Get quiz access code from wherever it might be stored
   const getAccessCode = () => {
     // Check all possible locations for the access code
-    const accessCode = localSettings?.accessCode || 
-                      quiz.access_code || 
-                      (quiz.settings && typeof quiz.settings === 'object' && quiz.settings.accessCode) ||
-                      (quiz.settings && typeof quiz.settings === 'string' && 
-                        (() => {
-                          try {
-                            return JSON.parse(quiz.settings).accessCode;
-                          } catch (e) {
-                            return null;
-                          }
-                        })()
-                      );
-    
-    // If we're published but don't have an access code, generate one on the fly for better UX
-    if (localStatus === 'published' && !accessCode) {
-      return Math.random().toString(36).substring(2, 8).toUpperCase();
-    }
-    
-    return accessCode;
+    return access_code || 
+           (settings && settings.accessCode) || 
+           quiz.access_code || 
+           (quiz.settings && typeof quiz.settings === 'object' && quiz.settings.accessCode) ||
+           (quiz.settings && typeof quiz.settings === 'string' && 
+             (() => {
+               try {
+                 return JSON.parse(quiz.settings).accessCode;
+               } catch (e) {
+                 return null;
+               }
+             })()
+           );
   };
 
   // Generate the shareable URL for the quiz
   const getQuizUrl = () => {
     const quizCode = getAccessCode();
     console.log('getQuizUrl for quiz ID ' + id + ':', { quizCode, status });
-    if (!quizCode || localStatus !== 'published') return null;
+    if (!quizCode || status !== 'published') return null;
     
     // Get base URL (works in production and development)
     const baseUrl = window.location.origin;
@@ -144,32 +136,17 @@ const QuizCard = ({ quiz, onStatusChange }) => {
       
       if (action === 'publish') {
         console.log(`Publishing quiz ${id}...`);
-        try {
-          // Try the real API first
-          const result = await quizzes.publish(id);
-          console.log('Publish result:', result);
-          
-          // Update local quiz data with published status
-          setStatus('published');
-          setSettings(result?.quiz?.settings || localSettings);
-          
+        
+        // Use the proper API endpoint
+        const response = await quizzes.publish(id);
+        console.log('Publish result:', response);
+        
+        // Refresh quiz data from server response
+        if (response.data?.success) {
           toast.success('Quiz published successfully');
-        } catch (err) {
-          console.error('Error publishing quiz:', err);
-          
-          // Fallback: Simulate successful publishing for better UX
-          // Generate a random access code if needed
-          if (!localSettings || !localSettings.accessCode) {
-            const newSettings = { ...(localSettings || {}) };
-            newSettings.accessCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-            setSettings(newSettings);
-          }
-          
-          // Update local status despite API error
-          setStatus('published');
-          
-          // Show a success message since we handled it on the frontend
-          toast.success('Quiz published successfully');
+          if (onStatusChange) onStatusChange({ ...quiz, status: 'published' });
+        } else {
+          throw new Error('Failed to publish quiz');
         }
       } else if (action === 'pause') {
         const response = await quizzes.pause(id);
@@ -240,10 +217,10 @@ const QuizCard = ({ quiz, onStatusChange }) => {
     console.log('Quiz card data for ID ' + id + ':', {
       status,
       accessCode: access_code, 
-      settingsAccessCode: localSettings?.accessCode,
-      settings: localSettings
+      settingsAccessCode: settings?.accessCode,
+      settings: settings
     });
-  }, [id, status, access_code, localSettings]);
+  }, [id, status, access_code, settings]);
 
   return (
     <>
@@ -263,7 +240,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
             
             {/* Status Badge - Overlay on image */}
             <div className="absolute top-3 left-3">
-              {localStatus === 'published' ? (
+              {status === 'published' ? (
                 <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-primary border border-gray-200">
                   <span className="relative flex h-2 w-2 mr-1.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/60 opacity-75"></span>
@@ -291,18 +268,18 @@ const QuizCard = ({ quiz, onStatusChange }) => {
                     <Menu.Item>
                       {({ active }) => (
                         <Link
-                          to={localStatus === 'published' && (access_code || localSettings?.accessCode) ? `/quiz/${access_code || localSettings?.accessCode}/view` : '#'}
+                          to={status === 'published' && (access_code || settings?.accessCode) ? `/quiz/${access_code || settings?.accessCode}/view` : '#'}
                           className={`${
                             active ? 'bg-gray-100' : ''
                           } group flex w-full items-center rounded-md px-2 py-2 text-sm ${
-                            (!access_code && !localSettings?.accessCode) || localStatus !== 'published' ? 'text-gray-400 cursor-not-allowed' : ''
+                            (!access_code && !settings?.accessCode) || status !== 'published' ? 'text-gray-400 cursor-not-allowed' : ''
                           }`}
                           onClick={(e) => {
-                            if ((!access_code && !localSettings?.accessCode) || localStatus !== 'published') {
+                            if ((!access_code && !settings?.accessCode) || status !== 'published') {
                               e.preventDefault();
                               toast.error('Quiz not available for viewing');
                             } else {
-                              console.log('Navigating to quiz view with code:', access_code || localSettings?.accessCode);
+                              console.log('Navigating to quiz view with code:', access_code || settings?.accessCode);
                             }
                           }}
                         >
@@ -311,7 +288,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
                         </Link>
                       )}
                     </Menu.Item>
-                    {localStatus === 'published' ? (
+                    {status === 'published' ? (
                       <Menu.Item disabled={isLoading}>
                         {({ active }) => (
                           <button
@@ -348,14 +325,14 @@ const QuizCard = ({ quiz, onStatusChange }) => {
                     <Menu.Item>
                       {({ active }) => (
                         <Link
-                          to={localStatus === 'published' ? `/quiz/${id}/submissions` : '#'}
+                          to={status === 'published' ? `/quiz/${id}/submissions` : '#'}
                           className={`${
                             active ? 'bg-gray-100' : ''
                           } group flex w-full items-center rounded-md px-2 py-2 text-sm ${
-                            localStatus !== 'published' ? 'text-gray-400 cursor-not-allowed' : ''
+                            status !== 'published' ? 'text-gray-400 cursor-not-allowed' : ''
                           }`}
                           onClick={(e) => {
-                            if (localStatus !== 'published') {
+                            if (status !== 'published') {
                               e.preventDefault();
                               toast.error('No submissions available for unpublished quizzes');
                             }
@@ -407,20 +384,20 @@ const QuizCard = ({ quiz, onStatusChange }) => {
             </div>
             <div className="flex items-center">
               <ClockIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className={`text-sm ${!localSettings?.duration ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
+              <span className={`text-sm ${!settings?.duration ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
                 {getDuration()}
               </span>
             </div>
             <div className="flex items-center">
               <AcademicCapIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className={`text-sm ${!localSettings?.complexity ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
+              <span className={`text-sm ${!settings?.complexity ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
                 {getDifficulty()}
               </span>
             </div>
           </div>
 
           {/* Sharing Information - Redesigned to be compact */}
-          {localStatus === 'published' && (
+          {status === 'published' && (
             <div className="mt-3 pt-2 border-t border-gray-100">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-medium text-gray-700">Share with learners:</h3>
