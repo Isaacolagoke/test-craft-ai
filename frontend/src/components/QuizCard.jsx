@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Menu } from '@headlessui/react';
 import { getImageUrl } from '../utils/apiUrl';
@@ -37,6 +37,34 @@ const QuizCard = ({ quiz, onStatusChange }) => {
 
   const [isLoading, setIsLoading] = React.useState(false);
   const [copied, setCopied] = React.useState({ code: false, url: false });
+  const [parsedSettings, setParsedSettings] = React.useState({});
+
+  // Parse settings on component mount or when quiz/settings change
+  useEffect(() => {
+    try {
+      // Check if settings is a string and needs parsing
+      if (typeof settings === 'string' && settings) {
+        setParsedSettings(JSON.parse(settings));
+      } else if (typeof settings === 'object') {
+        setParsedSettings(settings || {});
+      } else {
+        setParsedSettings({});
+      }
+      
+      console.log('Quiz card data for ID ' + id + ':', {
+        id,
+        title,
+        description,
+        status,
+        settings: settings,
+        parsedSettings: typeof settings === 'string' ? JSON.parse(settings) : settings,
+        access_code
+      });
+    } catch (e) {
+      console.error('Error parsing settings for quiz ' + id + ':', e);
+      setParsedSettings({});
+    }
+  }, [id, settings, quiz]);
 
   // Capitalize first letter of title and description
   const capitalizeFirstLetter = (str) => {
@@ -46,29 +74,20 @@ const QuizCard = ({ quiz, onStatusChange }) => {
 
   // Get formatted settings values
   const getDuration = () => {
-    // Debug what we actually have for duration
-    console.log('Duration data for quiz ID ' + id + ':', {
-      settingsDuration: settings?.duration,
-      settingsTimeUnit: settings?.timeUnit,
-      quizTimeLimit: quiz.timeLimit,
-      quizTimeUnit: quiz.timeUnit,
-      accessCode: access_code,
-      rawSettings: settings
-    });
-    
-    if (settings?.duration) return `${settings.duration} ${settings.timeUnit || 'minutes'}`;
+    // Get duration from parsed settings or quiz object
+    if (parsedSettings?.duration) return `${parsedSettings.duration} ${parsedSettings.timeUnit || 'minutes'}`;
     if (quiz.timeLimit) return `${quiz.timeLimit} ${quiz.timeUnit || 'minutes'}`;
     return 'Duration not set';
   };
 
   const getDifficulty = () => {
-    if (settings?.complexity) return capitalizeFirstLetter(settings.complexity);
+    if (parsedSettings?.complexity) return capitalizeFirstLetter(parsedSettings.complexity);
     if (quiz.complexity) return capitalizeFirstLetter(quiz.complexity);
     return 'Difficulty not set';
   };
 
   const getCategory = () => {
-    if (settings?.category) return settings.category;
+    if (parsedSettings?.category) return parsedSettings.category;
     if (category || quiz.category) return category || quiz.category;
     return 'Subject not set';
   };
@@ -104,7 +123,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
   const getAccessCode = () => {
     // Check all possible locations for the access code
     return access_code || 
-           (settings && settings.accessCode) || 
+           (parsedSettings && parsedSettings.accessCode) || 
            quiz.access_code || 
            (quiz.settings && typeof quiz.settings === 'object' && quiz.settings.accessCode) ||
            (quiz.settings && typeof quiz.settings === 'string' && 
@@ -150,7 +169,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
           onStatusChange({
             ...quiz,
             status: 'published',
-            settings: updatedQuiz.settings || settings,
+            settings: updatedQuiz.settings || parsedSettings,
             published_at: updatedQuiz.published_at || new Date().toISOString()
           });
         }
@@ -226,10 +245,10 @@ const QuizCard = ({ quiz, onStatusChange }) => {
     console.log('Quiz card data for ID ' + id + ':', {
       status,
       accessCode: access_code, 
-      settingsAccessCode: settings?.accessCode,
-      settings: settings
+      settingsAccessCode: parsedSettings?.accessCode,
+      settings: parsedSettings
     });
-  }, [id, status, access_code, settings]);
+  }, [id, status, access_code, parsedSettings]);
 
   return (
     <>
@@ -277,18 +296,18 @@ const QuizCard = ({ quiz, onStatusChange }) => {
                     <Menu.Item>
                       {({ active }) => (
                         <Link
-                          to={status === 'published' && (access_code || settings?.accessCode) ? `/quiz/${access_code || settings?.accessCode}/view` : '#'}
+                          to={status === 'published' && (access_code || parsedSettings?.accessCode) ? `/quiz/${access_code || parsedSettings?.accessCode}/view` : '#'}
                           className={`${
                             active ? 'bg-gray-100' : ''
                           } group flex w-full items-center rounded-md px-2 py-2 text-sm ${
-                            (!access_code && !settings?.accessCode) || status !== 'published' ? 'text-gray-400 cursor-not-allowed' : ''
+                            (!access_code && !parsedSettings?.accessCode) || status !== 'published' ? 'text-gray-400 cursor-not-allowed' : ''
                           }`}
                           onClick={(e) => {
-                            if ((!access_code && !settings?.accessCode) || status !== 'published') {
+                            if ((!access_code && !parsedSettings?.accessCode) || status !== 'published') {
                               e.preventDefault();
                               toast.error('Quiz not available for viewing');
                             } else {
-                              console.log('Navigating to quiz view with code:', access_code || settings?.accessCode);
+                              console.log('Navigating to quiz view with code:', access_code || parsedSettings?.accessCode);
                             }
                           }}
                         >
@@ -393,13 +412,13 @@ const QuizCard = ({ quiz, onStatusChange }) => {
             </div>
             <div className="flex items-center">
               <ClockIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className={`text-sm ${!settings?.duration ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
+              <span className={`text-sm ${!parsedSettings?.duration ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
                 {getDuration()}
               </span>
             </div>
             <div className="flex items-center">
               <AcademicCapIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className={`text-sm ${!settings?.complexity ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
+              <span className={`text-sm ${!parsedSettings?.complexity ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
                 {getDifficulty()}
               </span>
             </div>
