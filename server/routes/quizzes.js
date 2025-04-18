@@ -976,8 +976,8 @@ router.put('/:id/pause', authenticateToken, async (req, res) => {
   }
 });
 
-// Access quiz by access code
-router.get('/access/:code', async (req, res) => {
+// Access quiz by code (for quiz takers)
+router.get('/code/:code', async (req, res) => {
   try {
     const accessCode = req.params.code;
     console.log('Accessing quiz with code:', accessCode);
@@ -989,32 +989,8 @@ router.get('/access/:code', async (req, res) => {
       });
     }
     
-    // Since database.sqlite doesn't have an access_code column, we need to search in settings
-    const quizzes = await db.getQuizzes();
-    console.log(`Found ${quizzes.length} quizzes. Searching for code: ${accessCode}`);
-    
-    // Find the quiz with matching access code in settings
-    let matchedQuiz = null;
-    for (const quiz of quizzes) {
-      try {
-        let settings = {};
-        try {
-          settings = JSON.parse(quiz.settings || '{}');
-        } catch (e) {
-          console.error(`Error parsing settings for quiz ${quiz.id}:`, e);
-          continue;
-        }
-        
-        // Check for access code in settings or directly in quiz object
-        if ((settings.accessCode === accessCode) || 
-            (quiz.access_code === accessCode)) {
-          matchedQuiz = quiz;
-          break;
-        }
-      } catch (e) {
-        console.error(`Error processing quiz ${quiz.id}:`, e);
-      }
-    }
+    // Use the improved database function to find the quiz by access code
+    const matchedQuiz = await db.getQuizByAccessCode(accessCode);
     
     if (!matchedQuiz) {
       console.log('No quiz found with access code:', accessCode);
@@ -1024,53 +1000,42 @@ router.get('/access/:code', async (req, res) => {
       });
     }
     
-    // Get user info for the creator
-    const user = await db.getUser(matchedQuiz.creator_id);
-    matchedQuiz.creator_name = user ? user.name : 'Unknown';
+    // Get quiz details and questions
+    const quizId = matchedQuiz.id;
+    const questions = await db.getQuestions(quizId);
     
-    console.log('Quiz found:', { 
-      id: matchedQuiz.id, 
-      title: matchedQuiz.title,
-      access_code: matchedQuiz.access_code
-    });
-
-    // Get quiz questions
-    const questions = await db.getQuestions(matchedQuiz.id);
-
-    // Parse questions options
-    const parsedQuestions = questions.map(q => ({
-      ...q,
-      options: JSON.parse(q.options)
-    }));
-
     // Parse settings
     let parsedSettings = {};
     try {
-      parsedSettings = matchedQuiz.settings ? JSON.parse(matchedQuiz.settings) : {};
+      if (typeof matchedQuiz.settings === 'string') {
+        parsedSettings = JSON.parse(matchedQuiz.settings);
+      } else {
+        parsedSettings = matchedQuiz.settings || {};
+      }
     } catch (e) {
-      console.error('Error parsing quiz settings:', e);
+      console.error('Error parsing settings:', e);
     }
     
-    // Ensure required fields exist in the settings
-    parsedSettings.duration = parsedSettings.duration || matchedQuiz.time_limit || null;
-    parsedSettings.complexity = parsedSettings.complexity || matchedQuiz.complexity || 'medium';
-    parsedSettings.category = parsedSettings.category || matchedQuiz.category || null;
+    // Make sure accessCode is included in the settings for reference
     parsedSettings.accessCode = parsedSettings.accessCode || accessCode;
-
-    res.json({
+    
+    // Create response with complete quiz data
+    const response = {
       success: true,
       quiz: {
         ...matchedQuiz,
         settings: parsedSettings,
-        questions: parsedQuestions
+        questions: questions,
+        access_code: matchedQuiz.access_code
       }
-    });
+    };
+    
+    res.json(response);
   } catch (error) {
-    console.error('Error fetching quiz:', error);
+    console.error('Error accessing quiz by code:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to fetch quiz',
-      details: error.message
+      error: 'Server error'
     });
   }
 });
@@ -1477,5 +1442,63 @@ router.get('/:id/submissions', authenticateToken, async (req, res) => {
     });
   }
 }); 
+
+// View quiz by access code (for quiz preview)
+router.get('/view/:code', async (req, res) => {
+  try {
+    const accessCode = req.params.code;
+    
+    if (!accessCode || accessCode === 'undefined') {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid access code provided'
+      });
+    }
+    
+    // Use the improved database function to find the quiz by access code
+    const matchedQuiz = await db.getQuizByAccessCode(accessCode);
+    
+    if (!matchedQuiz) {
+      console.log(`No quiz found with access code ${accessCode}`);
+      return res.status(404).json({
+        success: false,
+        error: 'Quiz not found'
+      });
+    }
+    
+    // Get questions for the quiz
+    const questions = await db.getQuestions(matchedQuiz.id);
+    
+    // Parse settings
+    let settings = {};
+    try {
+      if (typeof matchedQuiz.settings === 'string') {
+        settings = JSON.parse(matchedQuiz.settings);
+      } else {
+        settings = matchedQuiz.settings || {};
+      }
+    } catch (e) {
+      console.error('Error parsing settings:', e);
+    }
+    
+    // Make sure accessCode is included in the settings
+    settings.accessCode = settings.accessCode || accessCode;
+    
+    res.json({
+      success: true,
+      quiz: {
+        ...matchedQuiz,
+        settings,
+        questions
+      }
+    });
+  } catch (error) {
+    console.error('Error accessing quiz view:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Server error'
+    });
+  }
+});
 
 module.exports = router;

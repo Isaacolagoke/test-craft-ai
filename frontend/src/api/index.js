@@ -90,7 +90,11 @@ const quizzes = {
   generateQuestions: (params) => api.post('/api/quizzes/generate', params),
   uploadImage: (formData) => api.post('/api/quizzes/upload-image', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
-  })
+  }),
+  // Add endpoints for quiz access by code
+  getByCode: (code) => api.get(`/api/quizzes/code/${code}`),
+  getViewByCode: (code) => api.get(`/api/quizzes/view/${code}`),
+  submitResponses: (quizId, data) => api.post(`/api/quizzes/${quizId}/submit`, data)
 };
 
 // Auth endpoints

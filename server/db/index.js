@@ -606,6 +606,71 @@ async function createTable() {
   return true;
 }
 
+/**
+ * Get quiz by access code
+ * @param {string} accessCode - The quiz access code
+ * @returns {Promise<Object|null>} - Returns the quiz or null if not found
+ */
+async function getQuizByAccessCode(accessCode) {
+  try {
+    console.log(`Getting quiz by access code: ${accessCode}`);
+    
+    // First try to find using direct access_code column if it exists
+    const { data: directResult, error: directError } = await supabase
+      .from('quizzes')
+      .select('*')
+      .eq('access_code', accessCode)
+      .eq('status', 'published')
+      .maybeSingle();
+      
+    if (directResult) {
+      console.log('Found quiz via direct access_code column');
+      return directResult;
+    }
+    
+    // If not found, try to find using the settings.accessCode JSON field
+    console.log('Trying to find quiz using settings->accessCode JSON field');
+    const { data, error } = await supabase
+      .from('quizzes')
+      .select('*')
+      .eq('status', 'published')
+      .is('settings', 'not.null');
+      
+    if (error) {
+      console.error('Error getting quiz by access code:', error);
+      return null;
+    }
+    
+    // Since we can't directly filter on JSON properties in some versions of Supabase,
+    // do the filtering in code
+    const matchedQuiz = data.find(quiz => {
+      let settings;
+      try {
+        if (typeof quiz.settings === 'string') {
+          settings = JSON.parse(quiz.settings);
+        } else {
+          settings = quiz.settings;
+        }
+        return settings && settings.accessCode === accessCode;
+      } catch (e) {
+        console.error(`Error parsing settings for quiz ${quiz.id}:`, e);
+        return false;
+      }
+    });
+    
+    if (matchedQuiz) {
+      console.log(`Found quiz with access code ${accessCode}:`, matchedQuiz.id);
+    } else {
+      console.log(`No quiz found with access code ${accessCode}`);
+    }
+    
+    return matchedQuiz || null;
+  } catch (error) {
+    console.error('Error in getQuizByAccessCode:', error);
+    return null;
+  }
+}
+
 // Export functions and supabase client for direct access if needed
 module.exports = {
   supabase,
@@ -629,5 +694,6 @@ module.exports = {
   saveResponse,
   getSubmissions,
   getTable,
-  createTable
+  createTable,
+  getQuizByAccessCode
 };
