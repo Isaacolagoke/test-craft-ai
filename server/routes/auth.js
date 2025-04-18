@@ -231,4 +231,44 @@ router.get('/profile', async (req, res) => {
     }
 });
 
+// Token verification endpoint - needed for frontend auth checks
+router.get('/verify', (req, res) => {
+    try {
+        const authHeader = req.headers['authorization'];
+        const token = authHeader && authHeader.split(' ')[1];
+        
+        if (!token) {
+            return res.status(401).json({ 
+                success: false, 
+                error: 'No token provided' 
+            });
+        }
+        
+        // Verify the token
+        jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key', (err, decoded) => {
+            if (err) {
+                return res.status(401).json({ 
+                    success: false, 
+                    error: 'Invalid or expired token' 
+                });
+            }
+            
+            // Token is valid
+            return res.json({
+                success: true,
+                user: {
+                    id: decoded.id,
+                    email: decoded.email
+                }
+            });
+        });
+    } catch (err) {
+        console.error('Token verification error:', err);
+        return res.status(500).json({
+            success: false,
+            error: 'Server error during verification'
+        });
+    }
+});
+
 module.exports = router;

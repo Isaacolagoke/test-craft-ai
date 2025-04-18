@@ -41,12 +41,9 @@ export default function TakeQuiz() {
           throw new Error('No access code provided');
         }
         
-        const token = localStorage.getItem('token')
-        const response = await fetch(getApiUrl(`/api/quizzes/access/${params.accessCode}`), {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
+        // Remove token requirement for public quiz access
+        // Use the correct endpoint path that matches our backend implementation
+        const response = await fetch(getApiUrl(`/api/quizzes/code/${params.accessCode}`))
         const data = await response.json()
         
         if (!response.ok) {

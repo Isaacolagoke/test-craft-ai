@@ -42,29 +42,55 @@ const QuizCard = ({ quiz, onStatusChange }) => {
   // Parse settings on component mount or when quiz/settings change
   useEffect(() => {
     try {
+      console.log('Quiz settings for ID ' + id + ':', {
+        settingsType: typeof settings, 
+        settingsValue: settings
+      });
+      
       // Check if settings is a string and needs parsing
       if (typeof settings === 'string' && settings) {
-        setParsedSettings(JSON.parse(settings));
-      } else if (typeof settings === 'object') {
-        setParsedSettings(settings || {});
+        try {
+          setParsedSettings(JSON.parse(settings));
+        } catch (parseError) {
+          console.error('Failed to parse settings string:', parseError);
+          setParsedSettings({});
+        }
+      } else if (settings && typeof settings === 'object') {
+        setParsedSettings(settings);
       } else {
-        setParsedSettings({});
+        // Fallback - look for settings directly on quiz object
+        const extractedSettings = {
+          category: quiz.category,
+          duration: quiz.timeLimit,
+          timeUnit: quiz.timeUnit || 'minutes',
+          complexity: quiz.complexity,
+          accessCode: quiz.access_code
+        };
+        
+        // Only include properties that actually exist
+        const cleanSettings = Object.fromEntries(
+          Object.entries(extractedSettings).filter(([_, v]) => v !== undefined && v !== null)
+        );
+        
+        setParsedSettings(cleanSettings);
       }
       
-      console.log('Quiz card data for ID ' + id + ':', {
+      console.log('Quiz data for ' + id + ' processed:', {
         id,
         title,
-        description,
         status,
-        settings: settings,
-        parsedSettings: typeof settings === 'string' ? JSON.parse(settings) : settings,
-        access_code
+        rawSettings: settings,
+        parsedSettings: parsedSettings,
+        category: getCategory(),
+        duration: getDuration(),
+        difficulty: getDifficulty(),
+        accessCode: getAccessCode()
       });
     } catch (e) {
-      console.error('Error parsing settings for quiz ' + id + ':', e);
+      console.error('Error processing settings for quiz ' + id + ':', e);
       setParsedSettings({});
     }
-  }, [id, settings, quiz]);
+  }, [id, quiz, settings]);
 
   // Capitalize first letter of title and description
   const capitalizeFirstLetter = (str) => {
