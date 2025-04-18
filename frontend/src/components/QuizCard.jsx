@@ -100,21 +100,46 @@ const QuizCard = ({ quiz, onStatusChange }) => {
 
   // Get formatted settings values
   const getDuration = () => {
-    // Get duration from parsed settings or quiz object
-    if (parsedSettings?.duration) return `${parsedSettings.duration} ${parsedSettings.timeUnit || 'minutes'}`;
-    if (quiz.timeLimit) return `${quiz.timeLimit} ${quiz.timeUnit || 'minutes'}`;
+    // Check parsedSettings first
+    if (parsedSettings?.duration) {
+      const unit = parsedSettings.timeUnit || 'minutes';
+      return `${parsedSettings.duration} ${unit}`;
+    }
+    
+    // Then check direct quiz properties
+    if (quiz.timeLimit) {
+      const unit = quiz.timeUnit || 'minutes';
+      return `${quiz.timeLimit} ${unit}`;
+    }
+    
     return 'Duration not set';
   };
 
   const getDifficulty = () => {
-    if (parsedSettings?.complexity) return capitalizeFirstLetter(parsedSettings.complexity);
-    if (quiz.complexity) return capitalizeFirstLetter(quiz.complexity);
+    // Check parsedSettings first
+    if (parsedSettings?.complexity) {
+      return capitalizeFirstLetter(parsedSettings.complexity);
+    }
+    
+    // Then check direct quiz property
+    if (quiz.complexity) {
+      return capitalizeFirstLetter(quiz.complexity);
+    }
+    
     return 'Difficulty not set';
   };
 
   const getCategory = () => {
-    if (parsedSettings?.category) return parsedSettings.category;
-    if (category || quiz.category) return category || quiz.category;
+    // Check parsedSettings first
+    if (parsedSettings?.category) {
+      return parsedSettings.category;
+    }
+    
+    // Then check direct quiz properties
+    if (quiz.category) {
+      return quiz.category;
+    }
+    
     return 'Subject not set';
   };
 

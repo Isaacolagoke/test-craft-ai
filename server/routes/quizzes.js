@@ -1019,16 +1019,35 @@ router.get('/code/:code', async (req, res) => {
     // Make sure accessCode is included in the settings for reference
     parsedSettings.accessCode = parsedSettings.accessCode || accessCode;
     
+    // Add any missing fields directly from quiz to settings
+    if (matchedQuiz.category && !parsedSettings.category) parsedSettings.category = matchedQuiz.category;
+    if (matchedQuiz.timeLimit && !parsedSettings.duration) parsedSettings.duration = matchedQuiz.timeLimit;
+    if (matchedQuiz.timeUnit && !parsedSettings.timeUnit) parsedSettings.timeUnit = matchedQuiz.timeUnit;
+    if (matchedQuiz.complexity && !parsedSettings.complexity) parsedSettings.complexity = matchedQuiz.complexity;
+    
     // Create response with complete quiz data
     const response = {
       success: true,
       quiz: {
         ...matchedQuiz,
         settings: parsedSettings,
-        questions: questions,
-        access_code: matchedQuiz.access_code
+        questions: questions.map(q => ({
+          ...q,
+          // Ensure both content and text fields exist for question text (for frontend compatibility)
+          content: q.content || q.text || '',
+          text: q.text || q.content || ''
+        }))
       }
     };
+    
+    // Log the response structure (without all the question details)
+    console.log('Returning quiz access response:', {
+      success: response.success,
+      quizId: response.quiz.id,
+      title: response.quiz.title,
+      settings: response.quiz.settings,
+      questionCount: response.quiz.questions.length
+    });
     
     res.json(response);
   } catch (error) {

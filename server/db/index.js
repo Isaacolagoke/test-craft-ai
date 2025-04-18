@@ -615,21 +615,7 @@ async function getQuizByAccessCode(accessCode) {
   try {
     console.log(`Getting quiz by access code: ${accessCode}`);
     
-    // First try to find using direct access_code column if it exists
-    const { data: directResult, error: directError } = await supabase
-      .from('quizzes')
-      .select('*')
-      .eq('access_code', accessCode)
-      .eq('status', 'published')
-      .maybeSingle();
-      
-    if (directResult) {
-      console.log('Found quiz via direct access_code column');
-      return directResult;
-    }
-    
-    // If not found, try to find using the settings.accessCode JSON field
-    console.log('Trying to find quiz using settings->accessCode JSON field');
+    // Get all published quizzes with settings
     const { data, error } = await supabase
       .from('quizzes')
       .select('*')
@@ -637,12 +623,13 @@ async function getQuizByAccessCode(accessCode) {
       .is('settings', 'not.null');
       
     if (error) {
-      console.error('Error getting quiz by access code:', error);
+      console.error('Error getting quizzes for access code lookup:', error);
       return null;
     }
     
-    // Since we can't directly filter on JSON properties in some versions of Supabase,
-    // do the filtering in code
+    console.log(`Checking ${data.length} published quizzes for access code: ${accessCode}`);
+    
+    // Find the quiz with matching access code in settings
     const matchedQuiz = data.find(quiz => {
       let settings;
       try {
@@ -659,7 +646,7 @@ async function getQuizByAccessCode(accessCode) {
     });
     
     if (matchedQuiz) {
-      console.log(`Found quiz with access code ${accessCode}:`, matchedQuiz.id);
+      console.log(`Found quiz with access code ${accessCode}: Quiz ID ${matchedQuiz.id}`);
     } else {
       console.log(`No quiz found with access code ${accessCode}`);
     }
