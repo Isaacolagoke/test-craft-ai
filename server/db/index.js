@@ -613,21 +613,49 @@ async function createTable() {
  */
 async function getQuizByAccessCode(accessCode) {
   try {
-    console.log(`Getting quiz by access code: ${accessCode}`);
+    console.log(`[DEBUG] getQuizByAccessCode: Searching for quiz with access code "${accessCode}"`);
     
-    // Get all published quizzes with settings
-    const { data, error } = await supabase
-      .from('quizzes')
-      .select('*')
-      .eq('status', 'published')
-      .is('settings', 'not.null');
-      
-    if (error) {
-      console.error('Error getting quizzes for access code lookup:', error);
+    if (!accessCode) {
+      console.error('[ERROR] getQuizByAccessCode: No access code provided');
       return null;
     }
     
-    console.log(`Checking ${data.length} published quizzes for access code: ${accessCode}`);
+    // Get all published quizzes with settings
+    console.log('[DEBUG] getQuizByAccessCode: Fetching all published quizzes with settings');
+    const { data, error } = await supabase
+      .from('quizzes')
+      .select('*')
+      .eq('status', 'published');
+      
+    if (error) {
+      console.error('[ERROR] getQuizByAccessCode: Database error:', error);
+      return null;
+    }
+    
+    if (!data || data.length === 0) {
+      console.log('[DEBUG] getQuizByAccessCode: No published quizzes found');
+      return null;
+    }
+    
+    console.log(`[DEBUG] getQuizByAccessCode: Found ${data.length} published quizzes. Checking for access code match...`);
+    
+    // Dump all quiz data for debugging
+    data.forEach(quiz => {
+      console.log(`[DEBUG] Quiz ID: ${quiz.id}, Title: ${quiz.title}, Settings Type: ${typeof quiz.settings}`);
+      
+      if (typeof quiz.settings === 'string') {
+        try {
+          const parsed = JSON.parse(quiz.settings);
+          console.log(`[DEBUG] Parsed settings for quiz ${quiz.id}:`, parsed);
+        } catch (e) {
+          console.error(`[ERROR] Could not parse settings for quiz ${quiz.id}:`, e.message);
+        }
+      } else if (quiz.settings) {
+        console.log(`[DEBUG] Settings for quiz ${quiz.id} (already object):`, quiz.settings);
+      } else {
+        console.log(`[DEBUG] Quiz ${quiz.id} has no settings`);
+      }
+    });
     
     // Find the quiz with matching access code in settings
     const matchedQuiz = data.find(quiz => {
@@ -638,22 +666,27 @@ async function getQuizByAccessCode(accessCode) {
         } else {
           settings = quiz.settings;
         }
-        return settings && settings.accessCode === accessCode;
+        
+        const matches = settings && settings.accessCode === accessCode;
+        if (matches) {
+          console.log(`[DEBUG] Found matching quiz! ID: ${quiz.id}, Title: ${quiz.title}`);
+        }
+        return matches;
       } catch (e) {
-        console.error(`Error parsing settings for quiz ${quiz.id}:`, e);
+        console.error(`[ERROR] Error parsing settings for quiz ${quiz.id}:`, e.message);
         return false;
       }
     });
     
     if (matchedQuiz) {
-      console.log(`Found quiz with access code ${accessCode}: Quiz ID ${matchedQuiz.id}`);
+      console.log(`[DEBUG] getQuizByAccessCode: Successfully found quiz with access code "${accessCode}": Quiz ID ${matchedQuiz.id}`);
+      return matchedQuiz;
     } else {
-      console.log(`No quiz found with access code ${accessCode}`);
+      console.log(`[DEBUG] getQuizByAccessCode: No quiz found with access code "${accessCode}" after checking all quizzes`);
+      return null;
     }
-    
-    return matchedQuiz || null;
   } catch (error) {
-    console.error('Error in getQuizByAccessCode:', error);
+    console.error('[ERROR] getQuizByAccessCode: Unhandled error:', error);
     return null;
   }
 }
