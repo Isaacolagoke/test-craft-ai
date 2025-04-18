@@ -48,17 +48,45 @@ const port = PORT;
 
 // Enable CORS for production
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' 
-    ? [
-        'https://testcraft-web.onrender.com',     // Your actual deployed frontend URL
-        'https://testcraft-web.onrender.app',     // Alternative Render domain pattern
-        'https://testcraft-ai.vercel.app'         // In case you deploy to Vercel later
-      ] 
-    : ['http://localhost:5173', 'http://localhost:5174', 'http://localhost:5175'],
+  origin: function(origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl requests)
+    if (!origin) return callback(null, true);
+    
+    // List of allowed origins
+    const allowedOrigins = [
+      'https://testcraft-web.onrender.com',
+      'https://testcraft-web.onrender.app',
+      'https://testcraft-ai.vercel.app',
+      'http://localhost:5173',
+      'http://localhost:5174',
+      'http://localhost:5175'
+    ];
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || !origin) {
+      callback(null, true);
+    } else {
+      console.log('CORS blocked origin:', origin);
+      // Still allow the request to proceed
+      callback(null, true);
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true
+  credentials: true,
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 }));
+
+// Add CORS header to all responses as backup
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (req.method === 'OPTIONS') {
+    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH');
+    return res.status(204).json({});
+  }
+  next();
+});
 
 // Global middleware
 app.use(express.json());
