@@ -20,8 +20,8 @@ const authenticateToken = async (req, res, next) => {
         const decoded = jwt.verify(token, secret);
         console.log("Token verified, user ID:", decoded.id);
         
-        // Verify that the user exists in the database
-        const user = await db.get('users', { id: decoded.id });
+        // Verify that the user exists in the database using getUser function
+        const user = await db.getUser(decoded.id);
         
         if (!user) {
             return res.status(403).json({
