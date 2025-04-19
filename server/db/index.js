@@ -595,6 +595,7 @@ async function getSubmissions(query, quizId) {
       user_name: item.users?.name || 'Anonymous',
       user_email: item.users?.email || 'unknown',
       answers: item.answers,
+      responses: item.answers,
       score: item.score,
       submitted_at: item.submitted_at
     }));
@@ -900,6 +901,55 @@ async function getSubmissions(quizId) {
   } catch (error) {
     console.error('[ERROR] getSubmissions:', error);
     return [];
+  }
+}
+
+/**
+ * Update a question
+ * @param {string} questionId - The question ID
+ * @param {Object} data - The updated question data
+ * @returns {Promise<boolean>} - Success status
+ */
+async function updateQuestion(questionId, data) {
+  try {
+    console.log(`[DEBUG] updateQuestion: Updating question ${questionId}`);
+    
+    // Ensure we have valid data
+    if (!questionId) {
+      console.error('[ERROR] updateQuestion: Missing questionId');
+      return false;
+    }
+    
+    // Handle options if they're an object
+    let options = data.options;
+    if (typeof options === 'object' && !Array.isArray(options)) {
+      options = JSON.stringify(options);
+    }
+    
+    // Create update object with only valid fields
+    const updateData = {};
+    if (data.text) updateData.text = data.text;
+    if (data.content) updateData.text = data.content; // Map content to text
+    if (data.type) updateData.type = data.type;
+    if (options) updateData.options = options;
+    if (data.correctAnswer !== undefined) updateData.correct_answer = data.correctAnswer;
+    if (data.correct_answer !== undefined) updateData.correct_answer = data.correct_answer;
+    
+    const { error } = await supabase
+      .from('questions')
+      .update(updateData)
+      .eq('id', questionId);
+    
+    if (error) {
+      console.error('[ERROR] updateQuestion:', error);
+      return false;
+    }
+    
+    console.log(`[DEBUG] updateQuestion: Successfully updated question ${questionId}`);
+    return true;
+  } catch (error) {
+    console.error('[ERROR] updateQuestion:', error);
+    return false;
   }
 }
 
