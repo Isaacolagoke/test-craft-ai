@@ -55,34 +55,44 @@ const QuizCard = ({ quiz, onStatusChange }) => {
       
       // Always initialize with direct properties from quiz object
       const initialSettings = {
-        category: quiz.category,
-        subject: quiz.subject || quiz.category,
-        duration: quiz.duration || quiz.timeLimit,
+        subject: quiz.subject || quiz.category || 'General',
+        category: quiz.category || quiz.subject || 'General',
+        duration: quiz.duration || quiz.timeLimit || 10,
         timeUnit: quiz.timeUnit || 'minutes',
         difficulty: quiz.difficulty || quiz.complexity || 'Medium',
         accessCode: quiz.access_code
       };
       
       // Try parsing settings from string if needed
+      let parsedSettings = initialSettings;
+      
       if (typeof settings === 'string' && settings.trim()) {
         try {
           const parsed = JSON.parse(settings);
           // Merge parsed settings with initial settings, prioritizing parsed values
-          setParsedSettings({...initialSettings, ...parsed});
+          parsedSettings = {...initialSettings, ...parsed};
           console.log('Successfully parsed settings string for quiz:', id);
         } catch (parseError) {
           console.error('Failed to parse settings string for quiz:', id, parseError);
-          setParsedSettings(initialSettings);
         }
       } else if (settings && typeof settings === 'object') {
         // Settings is already an object, merge with initial settings
-        setParsedSettings({...initialSettings, ...settings});
+        parsedSettings = {...initialSettings, ...settings};
         console.log('Using object settings for quiz:', id);
-      } else {
-        // No valid settings found, use initial values
-        setParsedSettings(initialSettings);
-        console.log('Using extracted settings from quiz properties for quiz:', id);
       }
+      
+      // Debug log the actual values we're working with
+      console.log('Final parsed settings for quiz', id, ':' , {
+        subject: parsedSettings.subject,
+        category: parsedSettings.category,
+        duration: parsedSettings.duration,
+        timeUnit: parsedSettings.timeUnit,
+        difficulty: parsedSettings.difficulty,
+        accessCode: parsedSettings.accessCode
+      });
+      
+      // Update the state
+      setParsedSettings(parsedSettings);
       
       // Force a refresh of the access code display
       if (access_code) {
@@ -93,9 +103,6 @@ const QuizCard = ({ quiz, onStatusChange }) => {
           }
         }, 100);
       }
-      
-      // Log the processed settings for debugging
-      console.log('Final parsed settings for quiz', id, ':', parsedSettings);
     } catch (e) {
       console.error('Error processing settings for quiz', id, ':', e);
       setParsedSettings({});
@@ -108,8 +115,10 @@ const QuizCard = ({ quiz, onStatusChange }) => {
     return str.charAt(0).toUpperCase() + str.slice(1);
   };
 
-  // Get formatted settings values
+  // Get formatted settings values with improved debugging
   const getDuration = () => {
+    console.log('Getting duration for quiz', id, ':', parsedSettings?.duration, parsedSettings?.timeUnit);
+    
     // Check parsedSettings first
     if (parsedSettings?.duration) {
       const unit = parsedSettings.timeUnit || 'minutes';
@@ -117,15 +126,17 @@ const QuizCard = ({ quiz, onStatusChange }) => {
     }
     
     // Then check direct quiz properties
-    if (quiz.timeLimit) {
+    if (quiz.duration) {
       const unit = quiz.timeUnit || 'minutes';
-      return `${quiz.timeLimit} ${unit}`;
+      return `${quiz.duration} ${unit}`;
     }
     
     return 'Duration not set';
   };
 
   const getDifficulty = () => {
+    console.log('Getting difficulty for quiz', id, ':', parsedSettings?.difficulty);
+    
     // Check parsedSettings first
     if (parsedSettings?.difficulty) {
       return capitalizeFirstLetter(parsedSettings.difficulty);
@@ -140,28 +151,32 @@ const QuizCard = ({ quiz, onStatusChange }) => {
   };
 
   const getCategory = () => {
+    console.log('Getting category for quiz', id, ':', parsedSettings?.category);
+    
     // Check parsedSettings first
     if (parsedSettings?.category) {
-      return parsedSettings.category;
+      return capitalizeFirstLetter(parsedSettings.category);
     }
     
-    // Then check direct quiz properties
+    // Then check direct quiz property
     if (quiz.category) {
-      return quiz.category;
+      return capitalizeFirstLetter(quiz.category);
     }
     
     return 'Subject not set';
   };
 
   const getSubject = () => {
+    console.log('Getting subject for quiz', id, ':', parsedSettings?.subject);
+    
     // Check parsedSettings first
     if (parsedSettings?.subject) {
-      return parsedSettings.subject;
+      return capitalizeFirstLetter(parsedSettings.subject);
     }
     
     // Then check direct quiz properties
     if (quiz.subject) {
-      return quiz.subject;
+      return capitalizeFirstLetter(quiz.subject);
     }
     
     return 'Subject not set';
@@ -532,7 +547,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
                   <div className="flex items-center">
                     <button
                       onClick={() => copyToClipboard(`${window.location.origin}/quiz/${access_code || parsedSettings?.accessCode}`, 'url')}
-                      className="text-primary hover:text-primary-dark inline-flex items-center rounded-md bg-primary-50 px-3 py-1.5 text-sm font-medium transition-colors"
+                      className="text-white bg-teal-600 hover:bg-teal-700 inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
                     >
                       <LinkIcon className="w-4 h-4 mr-1.5" />
                       {copied.url ? 'Copied!' : 'Copy URL'}
@@ -541,7 +556,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
                     {/* Email Share Button */}
                     <button
                       onClick={() => setIsShareByEmailModalOpen(true)}
-                      className="ml-2 text-primary hover:text-primary-dark inline-flex items-center rounded-md bg-primary-50 px-3 py-1.5 text-sm font-medium transition-colors"
+                      className="ml-2 text-white bg-teal-600 hover:bg-teal-700 inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
                     >
                       <EnvelopeIcon className="w-4 h-4 mr-1.5" />
                       Email

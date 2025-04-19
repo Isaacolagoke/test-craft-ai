@@ -12,6 +12,7 @@ export default function TakeQuiz() {
   const navigate = useNavigate()
   const [quiz, setQuiz] = React.useState(null)
   const [loading, setLoading] = React.useState(true)
+  const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState(null)
   const [currentQuestionIndex, setCurrentQuestionIndex] = React.useState(0)
   const [responses, setResponses] = React.useState({})
