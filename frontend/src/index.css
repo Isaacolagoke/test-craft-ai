@@ -5,6 +5,9 @@
 
 :root {
   font-family: 'Manrope', sans-serif;
+  --primary-color: #0a9396;
+  --primary-light: #e0f2f1;
+  --primary-dark: #007476;
 }
 
 body {
@@ -15,6 +18,39 @@ body {
   background-color: #ffffff;
   font-size: 14px; /* Default body text size */
   line-height: 1.5;
+}
+
+/* Brand colors */
+.text-primary {
+  color: var(--primary-color);
+}
+
+.text-primary-dark {
+  color: var(--primary-dark);
+}
+
+.bg-primary {
+  background-color: var(--primary-color);
+}
+
+.bg-primary-50 {
+  background-color: var(--primary-light);
+}
+
+.hover\:bg-primary:hover {
+  background-color: var(--primary-color);
+}
+
+.hover\:text-primary:hover {
+  color: var(--primary-color);
+}
+
+.hover\:bg-primary-dark:hover {
+  background-color: var(--primary-dark);
+}
+
+.border-primary {
+  border-color: var(--primary-color);
 }
 
 @layer utilities {

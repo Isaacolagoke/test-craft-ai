@@ -35,7 +35,13 @@ const QuizCard = ({ quiz, onStatusChange }) => {
     created_at,
     settings = {},
     questions = [],
-    category
+    category,
+    subject,
+    duration,
+    timeLimit,
+    timeUnit,
+    difficulty,
+    complexity
   } = quiz;
 
   const [isLoading, setIsLoading] = React.useState(false);
@@ -50,9 +56,10 @@ const QuizCard = ({ quiz, onStatusChange }) => {
       // Always initialize with direct properties from quiz object
       const initialSettings = {
         category: quiz.category,
-        duration: quiz.timeLimit,
+        subject: quiz.subject || quiz.category,
+        duration: quiz.duration || quiz.timeLimit,
         timeUnit: quiz.timeUnit || 'minutes',
-        complexity: quiz.complexity,
+        difficulty: quiz.difficulty || quiz.complexity || 'Medium',
         accessCode: quiz.access_code
       };
       
@@ -77,13 +84,23 @@ const QuizCard = ({ quiz, onStatusChange }) => {
         console.log('Using extracted settings from quiz properties for quiz:', id);
       }
       
+      // Force a refresh of the access code display
+      if (access_code) {
+        setTimeout(() => {
+          const codeDisplay = document.getElementById(`access-code-${id}`);
+          if (codeDisplay) {
+            codeDisplay.textContent = access_code;
+          }
+        }, 100);
+      }
+      
       // Log the processed settings for debugging
       console.log('Final parsed settings for quiz', id, ':', parsedSettings);
     } catch (e) {
       console.error('Error processing settings for quiz', id, ':', e);
       setParsedSettings({});
     }
-  }, [id, quiz, settings]);
+  }, [id, quiz, settings, access_code]);
 
   // Capitalize first letter of title and description
   const capitalizeFirstLetter = (str) => {
@@ -110,13 +127,13 @@ const QuizCard = ({ quiz, onStatusChange }) => {
 
   const getDifficulty = () => {
     // Check parsedSettings first
-    if (parsedSettings?.complexity) {
-      return capitalizeFirstLetter(parsedSettings.complexity);
+    if (parsedSettings?.difficulty) {
+      return capitalizeFirstLetter(parsedSettings.difficulty);
     }
     
     // Then check direct quiz property
-    if (quiz.complexity) {
-      return capitalizeFirstLetter(quiz.complexity);
+    if (quiz.difficulty) {
+      return capitalizeFirstLetter(quiz.difficulty);
     }
     
     return 'Difficulty not set';
@@ -131,6 +148,20 @@ const QuizCard = ({ quiz, onStatusChange }) => {
     // Then check direct quiz properties
     if (quiz.category) {
       return quiz.category;
+    }
+    
+    return 'Subject not set';
+  };
+
+  const getSubject = () => {
+    // Check parsedSettings first
+    if (parsedSettings?.subject) {
+      return parsedSettings.subject;
+    }
+    
+    // Then check direct quiz properties
+    if (quiz.subject) {
+      return quiz.subject;
     }
     
     return 'Subject not set';
@@ -450,21 +481,30 @@ const QuizCard = ({ quiz, onStatusChange }) => {
         
         {/* Card Content */}
         <div className="p-4">
-          <h2 className="text-lg font-semibold mb-1 line-clamp-1 leading-tight text-gray-900">{capitalizeFirstLetter(title)}</h2>
-          <p className="text-gray-600 text-sm mb-4 line-clamp-2 leading-snug">{capitalizeFirstLetter(description)}</p>
+          {/* Card Title */}
+          <h3 className="font-semibold text-gray-900 mb-1">
+            {capitalizeFirstLetter(title)}
+          </h3>
           
-          {/* Quiz Stats */}
+          {/* Card Description - Optional */}
+          {description && (
+            <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+              {capitalizeFirstLetter(description)}
+            </p>
+          )}
+          
+          {/* Card Stats Grid */}
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div className="flex items-center">
               <BookOpenIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className={`text-sm ${!getCategory() || getCategory() === 'Subject not set' ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
-                {getCategory()}
+              <span className={`text-sm ${!getSubject() || getSubject() === 'Subject not set' ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
+                {getSubject()}
               </span>
             </div>
             <div className="flex items-center">
               <QuestionMarkCircleIcon className="w-4 h-4 text-gray-500 mr-1.5" />
               <span className="text-sm text-gray-800 font-medium">
-                {questions.length} Questions
+                {questions.length || 0} Questions
               </span>
             </div>
             <div className="flex items-center">
@@ -475,50 +515,54 @@ const QuizCard = ({ quiz, onStatusChange }) => {
             </div>
             <div className="flex items-center">
               <AcademicCapIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className={`text-sm ${!parsedSettings?.complexity ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
+              <span className={`text-sm ${!parsedSettings?.difficulty ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
                 {getDifficulty()}
               </span>
             </div>
           </div>
-
-          {/* Sharing Information - Redesigned to be compact */}
-          {status === 'published' && (
-            <div className="mt-3 pt-2 border-t border-gray-100">
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="text-sm font-medium text-gray-700">Share with learners:</h3>
+          
+          {/* Sharing Section - Only show for published quizzes */}
+          {status === 'published' && (parsedSettings?.accessCode || access_code) && (
+            <div className="mt-5">
+              <div className="border-t border-gray-100 pt-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Share with learners:</h4>
                 
-                {/* Copy URL Button */}
-                <button 
-                  onClick={() => copyToClipboard(getQuizUrl(), 'url')}
-                  className="flex items-center px-2 py-1 bg-gray-50 hover:bg-gray-100 rounded text-sm text-gray-600 transition-colors"
-                  disabled={!getQuizUrl()}
-                  title="Copy quiz URL"
-                >
-                  <LinkIcon className="w-4 h-4 mr-1" />
-                  Copy URL
-                  {copied.url && <span className="ml-1 text-primary">✓</span>}
-                </button>
-              </div>
-              
-              {/* Access Code Display */}
-              <div className="flex items-center justify-between bg-gray-50 rounded-md px-3 py-2">
-                <div className="flex items-center">
-                  <span className="text-xs text-gray-500 mr-1">Code:</span>
-                  <span className="text-sm font-mono font-medium">
-                    {getAccessCode() || (
-                      <span className="text-gray-400 text-xs">Processing...</span>
-                    )}
-                  </span>
+                <div className="flex flex-col gap-3">
+                  {/* Copy URL Button */}
+                  <div className="flex items-center">
+                    <button
+                      onClick={() => copyToClipboard(`${window.location.origin}/quiz/${access_code || parsedSettings?.accessCode}`, 'url')}
+                      className="text-primary hover:text-primary-dark inline-flex items-center rounded-md bg-primary-50 px-3 py-1.5 text-sm font-medium transition-colors"
+                    >
+                      <LinkIcon className="w-4 h-4 mr-1.5" />
+                      {copied.url ? 'Copied!' : 'Copy URL'}
+                    </button>
+                    
+                    {/* Email Share Button */}
+                    <button
+                      onClick={() => setIsShareByEmailModalOpen(true)}
+                      className="ml-2 text-primary hover:text-primary-dark inline-flex items-center rounded-md bg-primary-50 px-3 py-1.5 text-sm font-medium transition-colors"
+                    >
+                      <EnvelopeIcon className="w-4 h-4 mr-1.5" />
+                      Email
+                    </button>
+                  </div>
+                  
+                  {/* Access Code Display */}
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm text-gray-500">Code:</div>
+                    <div className="bg-gray-50 rounded px-2 py-1 text-sm font-medium font-mono text-gray-800 flex-grow" id={`access-code-${id}`}>
+                      {access_code || parsedSettings?.accessCode || 'Processing...'}
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(access_code || parsedSettings?.accessCode, 'code')}
+                      className="text-primary hover:text-primary-dark p-1 rounded-md hover:bg-gray-100"
+                      title="Copy access code"
+                    >
+                      <ClipboardDocumentIcon className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-                <button 
-                  onClick={() => copyToClipboard(getAccessCode(), 'code')}
-                  className="p-1.5 text-gray-500 hover:text-primary hover:bg-gray-100 rounded-full transition-colors"
-                  title="Copy access code"
-                  disabled={!getAccessCode()}
-                >
-                  <ClipboardDocumentIcon className="w-3.5 h-3.5" />
-                  {copied.code && <span className="sr-only">Copied!</span>}
-                </button>
               </div>
             </div>
           )}
