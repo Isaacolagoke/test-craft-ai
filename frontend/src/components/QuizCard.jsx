@@ -4,6 +4,7 @@ import { Menu } from '@headlessui/react';
 import { getImageUrl } from '../utils/apiUrl';
 import { quizzes } from '../api';
 import { toast } from 'react-hot-toast';
+import logger from '../utils/logger';
 import { 
   EyeIcon, 
   PlayIcon, 
@@ -51,7 +52,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
   // Parse settings on component mount or when quiz/settings change
   useEffect(() => {
     try {
-      console.log('Quiz ID:', id, 'Title:', title, 'Settings type:', typeof settings);
+      logger.info('Quiz ID:', id, 'Title:', title, 'Settings type:', typeof settings);
       
       // Always initialize with direct properties from quiz object
       const initialSettings = {
@@ -71,18 +72,18 @@ const QuizCard = ({ quiz, onStatusChange }) => {
           const parsed = JSON.parse(settings);
           // Merge parsed settings with initial settings, prioritizing parsed values
           parsedSettings = {...initialSettings, ...parsed};
-          console.log('Successfully parsed settings string for quiz:', id);
+          logger.info('Successfully parsed settings string for quiz:', id);
         } catch (parseError) {
-          console.error('Failed to parse settings string for quiz:', id, parseError);
+          logger.error('Failed to parse settings string for quiz:', id, parseError);
         }
       } else if (settings && typeof settings === 'object') {
         // Settings is already an object, merge with initial settings
         parsedSettings = {...initialSettings, ...settings};
-        console.log('Using object settings for quiz:', id);
+        logger.info('Using object settings for quiz:', id);
       }
       
       // Debug log the actual values we're working with
-      console.log('Final parsed settings for quiz', id, ':' , {
+      logger.info('Final parsed settings for quiz', id, ':' , {
         subject: parsedSettings.subject,
         category: parsedSettings.category,
         duration: parsedSettings.duration,
@@ -104,7 +105,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
         }, 100);
       }
     } catch (e) {
-      console.error('Error processing settings for quiz', id, ':', e);
+      logger.error('Error processing settings for quiz', id, ':', e);
       setParsedSettings({});
     }
   }, [id, quiz, settings, access_code]);
@@ -117,7 +118,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
 
   // Get formatted settings values with improved debugging
   const getDuration = () => {
-    console.log('Getting duration for quiz', id, ':', parsedSettings?.duration, parsedSettings?.timeUnit);
+    logger.info('Getting duration for quiz', id, ':', parsedSettings?.duration, parsedSettings?.timeUnit);
     
     // Check parsedSettings first
     if (parsedSettings?.duration) {
@@ -135,7 +136,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
   };
 
   const getDifficulty = () => {
-    console.log('Getting difficulty for quiz', id, ':', parsedSettings?.difficulty);
+    logger.info('Getting difficulty for quiz', id, ':', parsedSettings?.difficulty);
     
     // Check parsedSettings first
     if (parsedSettings?.difficulty) {
@@ -151,7 +152,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
   };
 
   const getCategory = () => {
-    console.log('Getting category for quiz', id, ':', parsedSettings?.category);
+    logger.info('Getting category for quiz', id, ':', parsedSettings?.category);
     
     // Check parsedSettings first
     if (parsedSettings?.category) {
@@ -167,7 +168,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
   };
 
   const getSubject = () => {
-    console.log('Getting subject for quiz', id, ':', parsedSettings?.subject);
+    logger.info('Getting subject for quiz', id, ':', parsedSettings?.subject);
     
     // Check parsedSettings first
     if (parsedSettings?.subject) {
@@ -190,7 +191,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
       try {
         settings = JSON.parse(settings);
       } catch (e) {
-        console.error('Error parsing quiz settings:', e);
+        logger.error('Error parsing quiz settings:', e);
         settings = {};
       }
     }
@@ -230,7 +231,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
   // Generate the shareable URL for the quiz
   const getQuizUrl = () => {
     const quizCode = getAccessCode();
-    console.log('getQuizUrl for quiz ID ' + id + ':', { quizCode, status });
+    logger.info('getQuizUrl for quiz ID ' + id + ':', { quizCode, status });
     if (!quizCode || status !== 'published') return null;
     
     // Get base URL (works in production and development)
@@ -245,11 +246,11 @@ const QuizCard = ({ quiz, onStatusChange }) => {
       setIsLoading(true);
       
       if (action === 'publish') {
-        console.log(`Publishing quiz ${id}...`);
+        logger.info(`Publishing quiz ${id}...`);
         
         // Use the proper API endpoint
         const response = await quizzes.publish(id);
-        console.log('Publish result:', response);
+        logger.info('Publish result:', response);
         
         // Extract the quiz data from the response
         const updatedQuiz = response.data?.quiz || {};
@@ -279,7 +280,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
         onStatusChange();
       }
     } catch (error) {
-      console.error('Error updating quiz status:', error);
+      logger.error('Error updating quiz status:', error);
       toast.error(error.response?.data?.error || 'Failed to update quiz status');
     } finally {
       setIsLoading(false);
@@ -301,7 +302,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
         throw new Error('Failed to delete quiz');
       }
     } catch (error) {
-      console.error('Error deleting quiz:', error);
+      logger.error('Error deleting quiz:', error);
       toast.error(error.response?.data?.error || 'Failed to delete quiz');
     } finally {
       setIsLoading(false);
@@ -325,14 +326,14 @@ const QuizCard = ({ quiz, onStatusChange }) => {
         toast.success(`${type === 'code' ? 'Access code' : 'Quiz URL'} copied to clipboard`);
       })
       .catch(err => {
-        console.error('Failed to copy:', err);
+        logger.error('Failed to copy:', err);
         toast.error('Failed to copy to clipboard');
       });
   };
 
   // Debug what we actually have for settings, status, and access code
   React.useEffect(() => {
-    console.log('Quiz card data for ID ' + id + ':', {
+    logger.info('Quiz card data for ID ' + id + ':', {
       status,
       accessCode: access_code, 
       settingsAccessCode: parsedSettings?.accessCode,
@@ -351,7 +352,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
               alt={title} 
               className="w-full h-full object-cover"
               onError={(e) => {
-                console.error('Failed to load image:', getCardImageUrl());
+                logger.error('Failed to load image:', getCardImageUrl());
                 e.target.src = 'https://placehold.co/600x400/e9e9e9/5d5d5d?text=Quiz+Image';
               }}
             />
@@ -397,7 +398,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
                               e.preventDefault();
                               toast.error('Quiz not available for viewing');
                             } else {
-                              console.log('Navigating to quiz view with code:', access_code || parsedSettings?.accessCode);
+                              logger.info('Navigating to quiz view with code:', access_code || parsedSettings?.accessCode);
                             }
                           }}
                         >

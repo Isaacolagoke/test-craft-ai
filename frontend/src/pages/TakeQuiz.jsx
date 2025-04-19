@@ -6,6 +6,7 @@ import { CheckIcon, ChevronUpDownIcon, ArrowUpTrayIcon } from '@heroicons/react/
 import { Listbox, Transition } from '@headlessui/react';
 import Modal from '../components/Modal';
 import { getApiUrl, getImageUrl } from '../utils/apiUrl';
+import logger from '../utils/logger';
 
 export default function TakeQuiz() {
   const params = useParams()
@@ -36,7 +37,7 @@ export default function TakeQuiz() {
         setLoading(true)
         setError(null)
         
-        console.log('Attempting to fetch quiz with accessCode:', params.accessCode);
+        logger.info('Attempting to fetch quiz with accessCode:', params.accessCode);
         
         if (!params.accessCode) {
           throw new Error('No access code provided');
@@ -62,7 +63,7 @@ export default function TakeQuiz() {
           throw new Error(data.error || 'Failed to fetch quiz')
         }
 
-        console.log('Quiz data received:', data.quiz);
+        logger.info('Quiz data received:', data.quiz);
 
         // Ensure access code is available in quiz settings
         if (data.quiz && data.quiz.settings) {
@@ -75,7 +76,7 @@ export default function TakeQuiz() {
           setTimeLeft(data.quiz.settings.duration * 60) // Convert minutes to seconds
         }
       } catch (err) {
-        console.error('Error fetching quiz:', err)
+        logger.error('Error fetching quiz:', err)
         setError(err.message)
         toast.error('Failed to fetch quiz: ' + err.message)
       } finally {
@@ -181,7 +182,7 @@ export default function TakeQuiz() {
         correctAnswers: Math.floor((quiz?.questions?.length || 0) * 0.8)
       })
     } catch (err) {
-      console.error('Error submitting quiz:', err)
+      logger.error('Error submitting quiz:', err)
       toast.error('Failed to submit quiz: ' + err.message)
     }
   }
@@ -241,7 +242,7 @@ export default function TakeQuiz() {
       }
       
     } catch (error) {
-      console.error('Error submitting quiz:', error);
+      logger.error('Error submitting quiz:', error);
       toast.error('Failed to submit quiz. Please try again.');
     } finally {
       setIsLoading(false);
@@ -256,8 +257,8 @@ export default function TakeQuiz() {
     
     const question = quiz.questions[currentQuestionIndex];
     
-    console.log("Raw question data:", question); // For debugging
-    console.log("Options structure:", question.options); // Debug the options structure
+    logger.info("Raw question data:", question); // For debugging
+    logger.info("Options structure:", question.options); // Debug the options structure
     
     // Handle different field naming
     return {
@@ -329,7 +330,7 @@ export default function TakeQuiz() {
                   alt="Question" 
                   className="max-w-full rounded-lg"
                   onError={(e) => {
-                    console.error('Failed to load question image:', currentQuestion.mediaUrl || currentQuestion.image);
+                    logger.error('Failed to load question image:', currentQuestion.mediaUrl || currentQuestion.image);
                     e.target.style.display = 'none';
                   }}
                 />
@@ -921,7 +922,7 @@ export default function TakeQuiz() {
               <button
                 type="button"
                 onClick={() => {
-                  console.log("Opening submit confirmation modal");
+                  logger.info("Opening submit confirmation modal");
                   setShowSubmitConfirm(true);
                 }}
                 className="px-6 py-2 bg-teal-700 text-white rounded-md hover:bg-teal-700/90"
@@ -1055,7 +1056,7 @@ export default function TakeQuiz() {
       <Modal 
         show={showSubmitConfirm} 
         onClose={() => {
-          console.log("Closing submit confirmation modal");
+          logger.info("Closing submit confirmation modal");
           setShowSubmitConfirm(false);
         }}
       >
@@ -1078,7 +1079,7 @@ export default function TakeQuiz() {
             <button
               type="button"
               onClick={() => {
-                console.log("Cancelled submission");
+                logger.info("Cancelled submission");
                 setShowSubmitConfirm(false);
               }}
               className="px-4 py-2 text-sm border border-gray-300 rounded-md hover:bg-gray-50"
@@ -1088,7 +1089,7 @@ export default function TakeQuiz() {
             <button
               type="button"
               onClick={() => {
-                console.log("Confirmed submission, calling submitQuiz");
+                logger.info("Confirmed submission, calling submitQuiz");
                 setShowSubmitConfirm(false);
                 submitQuiz();
               }}
@@ -1111,7 +1112,7 @@ export default function TakeQuiz() {
                   alt={quiz.title} 
                   className="w-full h-full object-cover"
                   onError={(e) => {
-                    console.error('Failed to load quiz image:', quiz.image_url || quiz.imageUrl || quiz.settings.imageUrl);
+                    logger.error('Failed to load quiz image:', quiz.image_url || quiz.imageUrl || quiz.settings.imageUrl);
                     e.target.src = 'https://placehold.co/600x400?text=Quiz+Image';
                   }}
                 />
