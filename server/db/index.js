@@ -780,13 +780,28 @@ async function createSubmissionsTable() {
       return true;
     }
     
-    // Create the table
-    const { error } = await supabase.rpc('create_submissions_table');
+    console.log('[DEBUG] Table does not exist, creating it now...');
+    
+    // Create the table directly using SQL
+    const { error } = await supabase.rpc('exec_sql', { 
+      sql: `
+        CREATE TABLE IF NOT EXISTS submissions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          quiz_id UUID REFERENCES quizzes(id),
+          learner_id TEXT,
+          responses JSONB,
+          metadata JSONB,
+          submitted_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+          status TEXT DEFAULT 'submitted',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+        );
+      `
+    });
     
     if (error) {
-      console.error('[ERROR] Failed to create submissions table:', error);
+      console.error('[ERROR] Failed to create submissions table via RPC:', error);
       
-      // If RPC method doesn't exist, use raw SQL
+      // Fallback to direct query
       const { error: sqlError } = await supabase.sql`
         CREATE TABLE IF NOT EXISTS submissions (
           id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -802,7 +817,25 @@ async function createSubmissionsTable() {
       
       if (sqlError) {
         console.error('[ERROR] Failed to create submissions table with SQL:', sqlError);
-        return false;
+        
+        // Try a more basic approach without references if that's the issue
+        const { error: basicError } = await supabase.sql`
+          CREATE TABLE IF NOT EXISTS submissions (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            quiz_id TEXT,
+            learner_id TEXT,
+            responses JSONB,
+            metadata JSONB,
+            submitted_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+            status TEXT DEFAULT 'submitted',
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+          );
+        `;
+        
+        if (basicError) {
+          console.error('[ERROR] Failed to create basic submissions table:', basicError);
+          return false;
+        }
       }
     }
     

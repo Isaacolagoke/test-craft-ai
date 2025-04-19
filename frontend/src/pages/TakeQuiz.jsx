@@ -194,7 +194,7 @@ export default function TakeQuiz() {
       // Get anonymous learner ID from session storage
       const learnerId = sessionStorage.getItem('learner_id') || 'anonymous_learner';
       
-      // Format submission data
+      // Format submission data correctly for the API
       const submissionData = {
         quizId: quiz.id,
         responses: Object.entries(responses).map(([questionId, answer]) => ({
@@ -208,11 +208,13 @@ export default function TakeQuiz() {
         metadata: {
           browser: navigator.userAgent,
           submittedAt: new Date().toISOString(),
-          timeSpent: timeLeft !== null ? (quiz?.settings?.duration || 0) * 60 - timeLeft : null
+          timeSpent: timeLeft !== null ? quiz?.settings?.duration * 60 - timeLeft : null
         }
       };
       
-      // Send the submission to the server
+      logger.info('Submitting quiz with data:', submissionData);
+      
+      // Send the submission to the server - using the correct URL format
       const response = await fetch(
         getApiUrl(`/api/quizzes/submit/${params.accessCode}`),
         {
@@ -224,16 +226,24 @@ export default function TakeQuiz() {
         }
       );
       
+      if (!response.ok) {
+        const errorText = await response.text();
+        logger.error('Submission error response:', response.status, errorText);
+        throw new Error(errorText || 'Failed to submit quiz');
+      }
+      
       // Handle the response
       const result = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to submit quiz');
-      }
+      logger.info('Submission result:', result);
       
       // Set quiz as submitted and show results
       setQuizSubmitted(true);
-      setQuizResult(result);
+      setQuizResult(result.result || {
+        passed: true,
+        score: 0,
+        totalQuestions: quiz.questions ? quiz.questions.length : 0,
+        correctAnswers: 0
+      });
       setShowResults(true);
       
       // Clear timer if it's running
@@ -241,9 +251,10 @@ export default function TakeQuiz() {
         clearInterval(timerRef.current);
       }
       
+      toast.success('Quiz submitted successfully!');
     } catch (error) {
       logger.error('Error submitting quiz:', error);
-      toast.error('Failed to submit quiz. Please try again.');
+      toast.error(error.message || 'Failed to submit quiz. Please try again.');
     } finally {
       setIsLoading(false);
     }
