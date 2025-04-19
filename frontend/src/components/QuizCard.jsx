@@ -361,6 +361,21 @@ const QuizCard = ({ quiz, onStatusChange, isListView }) => {
                       )}
                     </Menu.Item>
                   )}
+                  
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={() => navigate(`/quiz/${id}/submissions`)}
+                        className={`${
+                          active ? 'bg-gray-100' : ''
+                        } group flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-900`}
+                        disabled={status !== 'published'}
+                      >
+                        <BookOpenIcon className="w-4 h-4 mr-2 text-gray-500" />
+                        View Submissions
+                      </button>
+                    )}
+                  </Menu.Item>
                 </div>
                 
                 <div className="px-1 py-1">
@@ -520,6 +535,21 @@ const QuizCard = ({ quiz, onStatusChange, isListView }) => {
                         )}
                       </Menu.Item>
                     )}
+                    
+                    <Menu.Item>
+                      {({ active }) => (
+                        <button
+                          onClick={() => navigate(`/quiz/${id}/submissions`)}
+                          className={`${
+                            active ? 'bg-gray-100' : ''
+                          } group flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-900`}
+                          disabled={status !== 'published'}
+                        >
+                          <BookOpenIcon className="w-4 h-4 mr-2 text-gray-500" />
+                          View Submissions
+                        </button>
+                      )}
+                    </Menu.Item>
                   </div>
                   
                   <div className="px-1 py-1">
