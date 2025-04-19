@@ -48,7 +48,10 @@ const QuizResults = () => {
   const totalQuestions = quiz.questions.length;
   const correctAnswers = results?.correctAnswers || 0;
   const passMark = quiz.settings?.passMark || 60;
-  const passed = score >= passMark;
+  
+  // Fix the issue where 0/0 shows as "passed"
+  // Only show passed if they have actually scored something and met the pass mark
+  const passed = score >= passMark && totalQuestions > 0 && correctAnswers > 0;
 
   return (
     <div className="min-h-screen bg-gray-50 py-8">

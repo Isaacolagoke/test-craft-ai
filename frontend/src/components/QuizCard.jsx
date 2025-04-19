@@ -149,33 +149,30 @@ const QuizCard = ({ quiz, onStatusChange, isListView }) => {
     return capitalizeFirstLetter(difficultyValue);
   };
 
-  // Fix image URL rendering with our utility function
+  // Get the image URL with proper fallback handling
   const getCardImageUrl = () => {
-    // Parse settings if it's a string
-    let settings = quiz.settings;
-    if (typeof settings === 'string' && settings) {
-      try {
-        settings = JSON.parse(settings);
-      } catch (e) {
-        logger.error('Failed to parse settings string:', e);
-      }
-    }
-
-    const imageUrlToUse = quiz.image_url || 
-                          quiz.imageUrl || 
-                          quiz.image || 
-                          (settings && settings.imageUrl) || 
-                          defaultImage;
+    // Log what we're trying to use
+    logger.debug('Getting image URL for quiz', id, {
+      image_url,
+      imageUrl,
+      settings_image: parsedSettings?.imageUrl
+    });
     
-    if (!imageUrlToUse) return defaultImage;
-    
-    // If it's already a full URL, return it as is
-    if (imageUrlToUse.startsWith('http')) {
-      return imageUrlToUse;
+    // Try to get a valid image URL from any of the possible sources
+    if (image_url && image_url !== 'undefined' && !image_url.includes('undefined')) {
+      return getImageUrl(image_url);
     }
     
-    // Otherwise, it's a path, so resolve it
-    return `/assets/images/${imageUrlToUse}`;
+    if (imageUrl && imageUrl !== 'undefined' && !imageUrl.includes('undefined')) {
+      return getImageUrl(imageUrl);
+    }
+    
+    if (parsedSettings?.imageUrl && parsedSettings.imageUrl !== 'undefined' && !parsedSettings.imageUrl.includes('undefined')) {
+      return getImageUrl(parsedSettings.imageUrl);
+    }
+    
+    // Use a more specific default image that indicates this is a placeholder
+    return `https://placehold.co/600x400/e2f5f5/136a6a?text=${encodeURIComponent(title || 'Quiz')}`;
   };
 
   const handleCopy = (type, value) => {
@@ -573,91 +570,85 @@ const QuizCard = ({ quiz, onStatusChange, isListView }) => {
           </div>
         </div>
         
-        {/* Card Content */}
+        {/* Quiz Details - Grid View */}
         <div className="p-4">
-          {/* Card Title */}
-          <h3 className="font-semibold text-gray-900 mb-1">
-            {capitalizeFirstLetter(title)}
+          <h3 className="font-medium text-lg text-slate-900 mb-1 truncate">
+            {title || 'Untitled Quiz'}
           </h3>
-          
-          {/* Card Description - Optional */}
-          {description && (
-            <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-              {capitalizeFirstLetter(description)}
-            </p>
-          )}
-          
-          {/* Card Stats Grid */}
-          <div className="grid grid-cols-2 gap-3 mb-3">
+          <p className="text-sm text-slate-600 line-clamp-2 min-h-[2.5rem]">
+            {description || 'No description provided.'}
+          </p>
+
+          <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="flex items-center">
               <BookOpenIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className={`text-sm ${!getSubject() || getSubject() === 'Subject not set' ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
-                {getSubject()}
+              <span className="text-sm text-slate-700">
+                {parsedSettings.category}
               </span>
             </div>
             <div className="flex items-center">
               <QuestionMarkCircleIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className="text-sm text-gray-800 font-medium">
-                {questions.length || 0} Questions
+              <span className="text-sm text-slate-700">
+                {questions.length} {questions.length === 1 ? 'Question' : 'Questions'}
               </span>
             </div>
             <div className="flex items-center">
               <ClockIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className={`text-sm ${!parsedSettings?.duration ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
-                {getDuration()}
+              <span className="text-sm text-slate-700">
+                {parsedSettings.duration} {parsedSettings.timeUnit || 'minutes'}
               </span>
             </div>
             <div className="flex items-center">
               <AcademicCapIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className={`text-sm ${!parsedSettings?.difficulty ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
-                {getDifficulty()}
+              <span className="text-sm text-slate-700">
+                {parsedSettings.difficulty}
               </span>
             </div>
           </div>
-          
-          {/* Sharing Section - Only show for published quizzes */}
-          {status === 'published' && (parsedSettings?.accessCode || access_code) && (
-            <div className="border-t border-gray-100 mt-3 pt-3">
-              <div className="mb-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <ClipboardDocumentIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-                    <span className="text-sm text-gray-800 font-medium">Access Code</span>
-                  </div>
-                  <button
-                    onClick={() => handleCopy('code', parsedSettings?.accessCode || access_code)}
-                    className="text-xs text-primary hover:text-primary-dark"
-                  >
-                    {copied.code ? 'Copied!' : 'Copy'}
-                  </button>
+        </div>
+        
+        {/* Sharing Section - Only show for published quizzes */}
+        {status === 'published' && (parsedSettings?.accessCode || access_code) && (
+          <div className="border-t border-gray-100 mt-3 pt-3">
+            <div className="mb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <ClipboardDocumentIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+                  <span className="text-sm text-gray-800 font-medium">Access Code</span>
                 </div>
-                <div className="mt-1 text-sm font-mono bg-gray-50 p-1.5 rounded border border-gray-200 text-gray-800">
-                  <code id={`access-code-${id}`}>
-                    {parsedSettings?.accessCode || access_code || 'No access code available'}
-                  </code>
-                </div>
+                <button
+                  onClick={() => handleCopy('code', parsedSettings?.accessCode || access_code)}
+                  className="text-xs text-primary hover:text-primary-dark"
+                >
+                  {copied.code ? 'Copied!' : 'Copy'}
+                </button>
               </div>
-              
-              <div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <LinkIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-                    <span className="text-sm text-gray-800 font-medium">Share Link</span>
-                  </div>
-                  <button
-                    onClick={() => handleCopy('url', getQuizUrl())}
-                    className="text-xs text-primary hover:text-primary-dark"
-                  >
-                    {copied.url ? 'Copied!' : 'Copy'}
-                  </button>
-                </div>
-                <div className="mt-1 text-sm font-mono bg-gray-50 p-1.5 rounded border border-gray-200 text-gray-800 truncate">
-                  <code>{getQuizUrl() || 'No share URL available'}</code>
-                </div>
+              <div className="mt-1 text-sm font-mono bg-gray-50 p-1.5 rounded border border-gray-200 text-gray-800">
+                <code id={`access-code-${id}`}>
+                  {parsedSettings?.accessCode || access_code || 'No access code available'}
+                </code>
               </div>
             </div>
-          )}
-        </div>
+            
+            <div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <LinkIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+                  <span className="text-sm text-gray-800 font-medium">Share Link</span>
+                </div>
+                <button
+                  onClick={() => handleCopy('url', getQuizUrl())}
+                  className="text-xs text-primary hover:text-primary-dark"
+                >
+                  {copied.url ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+              <div className="mt-1 text-sm font-mono bg-gray-50 p-1.5 rounded border border-gray-200 text-gray-800 truncate">
+                <code>{getQuizUrl() || 'No share URL available'}</code>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <DeleteQuizModal

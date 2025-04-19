@@ -847,31 +847,82 @@ async function createSubmissionsTable() {
   }
 }
 
+/**
+ * Get submissions for a specific quiz
+ * @param {string} quizId - The quiz ID
+ * @returns {Promise<Array>} - The submissions
+ */
+async function getSubmissions(quizId) {
+  try {
+    console.log(`[DEBUG] getSubmissions: Fetching submissions for quiz ${quizId}`);
+    
+    const { data, error } = await supabase
+      .from('submissions')
+      .select('*')
+      .eq('quiz_id', quizId)
+      .order('submitted_at', { ascending: false });
+    
+    if (error) {
+      console.error('[ERROR] getSubmissions:', error);
+      return [];
+    }
+    
+    console.log(`[DEBUG] getSubmissions: Found ${data.length} submissions for quiz ${quizId}`);
+    
+    // Process the responses for each submission
+    const processedData = data.map(submission => {
+      try {
+        // Parse responses if they're stored as a string
+        const responses = typeof submission.responses === 'string'
+          ? JSON.parse(submission.responses)
+          : submission.responses || [];
+        
+        // Parse metadata if it's stored as a string
+        const metadata = typeof submission.metadata === 'string'
+          ? JSON.parse(submission.metadata)
+          : submission.metadata || {};
+        
+        return {
+          ...submission,
+          answers: responses, // Map responses to answers for frontend compatibility
+          responses: responses,
+          metadata: metadata,
+          score: metadata.score || 0, // Extract score from metadata if available
+          username: submission.learner_id || 'Anonymous User'
+        };
+      } catch (err) {
+        console.error('[ERROR] Error processing submission:', err);
+        return submission;
+      }
+    });
+    
+    return processedData;
+  } catch (error) {
+    console.error('[ERROR] getSubmissions:', error);
+    return [];
+  }
+}
+
 // Export functions and supabase client for direct access if needed
 module.exports = {
   supabase,
-  get,
-  all,
-  insert,
-  update,
-  remove,
-  run,
-  getQuiz,
   getQuizzes,
-  getQuestions,
+  getQuiz,
   createQuiz,
-  createQuestion,
-  updateQuizContent,
   updateQuiz,
-  updateQuizSettings,
-  updateQuizStatus,
+  getQuestions,
+  createQuestion,
+  updateQuestion,
+  deleteQuestion,
   deleteQuiz,
   getUser,
-  saveResponse,
-  getSubmissions,
+  getUserByEmail,
+  createUser,
+  updateUser,
   getTable,
   createTable,
   getQuizByAccessCode,
   insertSubmission,
-  createSubmissionsTable
+  createSubmissionsTable,
+  getSubmissions
 };
