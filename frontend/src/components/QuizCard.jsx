@@ -14,13 +14,16 @@ import {
   AcademicCapIcon,
   QuestionMarkCircleIcon,
   ClipboardDocumentIcon,
-  LinkIcon
+  LinkIcon,
+  EnvelopeIcon
 } from '@heroicons/react/24/outline';
 import DeleteQuizModal from './DeleteQuizModal';
+import ShareByEmailModal from './ShareByEmailModal';
 
 const QuizCard = ({ quiz, onStatusChange }) => {
   const navigate = useNavigate();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
+  const [isShareByEmailModalOpen, setIsShareByEmailModalOpen] = React.useState(false);
   const {
     id,
     title,
@@ -42,52 +45,42 @@ const QuizCard = ({ quiz, onStatusChange }) => {
   // Parse settings on component mount or when quiz/settings change
   useEffect(() => {
     try {
-      console.log('Quiz settings for ID ' + id + ':', {
-        settingsType: typeof settings, 
-        settingsValue: settings
-      });
+      console.log('Quiz ID:', id, 'Title:', title, 'Settings type:', typeof settings);
       
-      // Check if settings is a string and needs parsing
-      if (typeof settings === 'string' && settings) {
+      // Always initialize with direct properties from quiz object
+      const initialSettings = {
+        category: quiz.category,
+        duration: quiz.timeLimit,
+        timeUnit: quiz.timeUnit || 'minutes',
+        complexity: quiz.complexity,
+        accessCode: quiz.access_code
+      };
+      
+      // Try parsing settings from string if needed
+      if (typeof settings === 'string' && settings.trim()) {
         try {
-          setParsedSettings(JSON.parse(settings));
+          const parsed = JSON.parse(settings);
+          // Merge parsed settings with initial settings, prioritizing parsed values
+          setParsedSettings({...initialSettings, ...parsed});
+          console.log('Successfully parsed settings string for quiz:', id);
         } catch (parseError) {
-          console.error('Failed to parse settings string:', parseError);
-          setParsedSettings({});
+          console.error('Failed to parse settings string for quiz:', id, parseError);
+          setParsedSettings(initialSettings);
         }
       } else if (settings && typeof settings === 'object') {
-        setParsedSettings(settings);
+        // Settings is already an object, merge with initial settings
+        setParsedSettings({...initialSettings, ...settings});
+        console.log('Using object settings for quiz:', id);
       } else {
-        // Fallback - look for settings directly on quiz object
-        const extractedSettings = {
-          category: quiz.category,
-          duration: quiz.timeLimit,
-          timeUnit: quiz.timeUnit || 'minutes',
-          complexity: quiz.complexity,
-          accessCode: quiz.access_code
-        };
-        
-        // Only include properties that actually exist
-        const cleanSettings = Object.fromEntries(
-          Object.entries(extractedSettings).filter(([_, v]) => v !== undefined && v !== null)
-        );
-        
-        setParsedSettings(cleanSettings);
+        // No valid settings found, use initial values
+        setParsedSettings(initialSettings);
+        console.log('Using extracted settings from quiz properties for quiz:', id);
       }
       
-      console.log('Quiz data for ' + id + ' processed:', {
-        id,
-        title,
-        status,
-        rawSettings: settings,
-        parsedSettings: parsedSettings,
-        category: getCategory(),
-        duration: getDuration(),
-        difficulty: getDifficulty(),
-        accessCode: getAccessCode()
-      });
+      // Log the processed settings for debugging
+      console.log('Final parsed settings for quiz', id, ':', parsedSettings);
     } catch (e) {
-      console.error('Error processing settings for quiz ' + id + ':', e);
+      console.error('Error processing settings for quiz', id, ':', e);
       setParsedSettings({});
     }
   }, [id, quiz, settings]);
@@ -435,6 +428,19 @@ const QuizCard = ({ quiz, onStatusChange }) => {
                         </button>
                       )}
                     </Menu.Item>
+                    <Menu.Item>
+                      {({ active }) => (
+                        <button
+                          onClick={() => setIsShareByEmailModalOpen(true)}
+                          className={`${
+                            active ? 'bg-gray-100' : ''
+                          } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
+                        >
+                          <EnvelopeIcon className="w-5 h-5 mr-2" />
+                          Share via Email
+                        </button>
+                      )}
+                    </Menu.Item>
                   </div>
                 </Menu.Items>
               </Menu>
@@ -525,6 +531,11 @@ const QuizCard = ({ quiz, onStatusChange }) => {
         onConfirm={handleDelete}
         title={title}
         isLoading={isLoading}
+      />
+      <ShareByEmailModal
+        isOpen={isShareByEmailModalOpen}
+        onClose={() => setIsShareByEmailModalOpen(false)}
+        quiz={quiz}
       />
     </>
   );

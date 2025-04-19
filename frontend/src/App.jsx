@@ -42,6 +42,7 @@ function App() {
         <Route path="/statistics" element={<PrivateRoute><Statistics /></PrivateRoute>} />
         <Route path="/create-quiz" element={<PrivateRoute><CreateQuiz /></PrivateRoute>} />
         <Route path="/quiz/:accessCode/view" element={<PrivateRoute><QuizView /></PrivateRoute>} />
+        {/* TakeQuiz does NOT need authentication - learners should access directly */}
         <Route path="/quiz/:accessCode" element={<TakeQuiz />} />
         <Route path="/quiz/:accessCode/results" element={<PrivateRoute><QuizResults /></PrivateRoute>} />
         <Route path="/quiz/:id/submissions" element={<PrivateRoute><QuizSubmissions /></PrivateRoute>} />

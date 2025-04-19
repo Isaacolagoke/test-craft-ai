@@ -1028,17 +1028,31 @@ export default function TakeQuiz() {
                   </p>
                 </div>
                 
-                <div className="mt-6">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      console.log("Navigating back to dashboard from results");
-                      navigate('/dashboard');
-                    }}
-                    className="px-4 py-2 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
-                  >
-                    Return to Dashboard
-                  </button>
+                <div className="mt-6 max-w-md mx-auto">
+                  <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-center">
+                    <p className="text-blue-800 text-sm">
+                      Thank you for completing this quiz. Your responses have been submitted and the instructor will be notified.
+                    </p>
+                  </div>
+                  
+                  {/* Show a different button based on whether user is authenticated or not */}
+                  {localStorage.getItem('token') ? (
+                    <button
+                      type="button"
+                      onClick={() => navigate('/dashboard')}
+                      className="mt-4 px-4 py-2 text-sm bg-teal-700 text-white rounded-md hover:bg-teal-800"
+                    >
+                      Return to Dashboard
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => window.close()}
+                      className="mt-4 px-4 py-2 text-sm bg-gray-500 text-white rounded-md hover:bg-gray-600"
+                    >
+                      Close Window
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
