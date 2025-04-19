@@ -51,7 +51,7 @@ router.post('/register', async (req, res) => {
 
         // Check if user already exists
         try {
-            const existingUser = await db.get('users', { email });
+            const existingUser = await db.getUserByEmail(email);
             if (existingUser) {
                 return res.status(409).json({
                     success: false,
@@ -67,12 +67,15 @@ router.post('/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, salt);
         
         try {
-            // Insert user into database
-            const newUser = await db.insert('users', {
-                name,
-                email,
-                password: hashedPassword
-            });
+            // Insert user into database using createUser function
+            const newUser = await db.createUser(email, name);
+            
+            // Update the user with the hashed password
+            if (newUser) {
+                await db.updateUser(newUser.id, { password: hashedPassword });
+            } else {
+                throw new Error('Failed to create user');
+            }
             
             // Generate token
             const token = jwt.sign(
@@ -142,8 +145,8 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // Get user
-        const user = await db.get('users', { email });
+        // Get user using the correct getUserByEmail function
+        const user = await db.getUserByEmail(email);
         if (!user) {
             loginAttempts.set(email, {
                 count: attempts.count + 1,
@@ -192,7 +195,8 @@ router.post('/login', async (req, res) => {
         console.error('Login error:', err);
         res.status(500).json({
             success: false,
-            error: 'Failed to login'
+            error: 'Failed to login',
+            details: process.env.NODE_ENV === 'development' ? err.message : undefined
         });
     }
 });
@@ -207,7 +211,7 @@ router.get('/profile', async (req, res) => {
             });
         }
 
-        const user = await db.get('users', { id: req.user.id });
+        const user = await db.getUser(req.user.id);
 
         if (!user) {
             return res.status(404).json({
@@ -226,7 +230,8 @@ router.get('/profile', async (req, res) => {
         console.error('Get profile error:', err);
         res.status(500).json({
             success: false,
-            error: 'Failed to get user profile'
+            error: 'Failed to get user profile',
+            details: process.env.NODE_ENV === 'development' ? err.message : undefined
         });
     }
 });
