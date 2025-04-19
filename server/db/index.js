@@ -497,130 +497,126 @@ async function updateQuizStatus(id, status) {
 
 /**
  * Delete a quiz
- * @param {number} id - Quiz ID
- * @returns {Promise<boolean>} - Returns true if successful
+ * @param {string} quizId - Quiz ID to delete
+ * @returns {Promise<boolean>} - Success status
  */
-async function deleteQuiz(id) {
+async function deleteQuiz(quizId) {
   try {
+    console.log(`[DEBUG] deleteQuiz: Deleting quiz with ID ${quizId}`);
+    
+    if (!quizId) {
+      console.error('[ERROR] deleteQuiz: Missing quizId');
+      return false;
+    }
+    
+    // First delete any questions associated with this quiz
+    const { error: questionsError } = await supabase
+      .from('questions')
+      .delete()
+      .eq('quiz_id', quizId);
+    
+    if (questionsError) {
+      console.error('[ERROR] deleteQuiz: Failed to delete questions:', questionsError);
+      // Continue with quiz deletion even if questions deletion fails
+    }
+    
+    // Then delete the quiz itself
     const { error } = await supabase
       .from('quizzes')
       .delete()
-      .eq('id', id);
+      .eq('id', quizId);
     
-    if (error) throw error;
+    if (error) {
+      console.error('[ERROR] deleteQuiz:', error);
+      return false;
+    }
+    
+    console.log(`[DEBUG] deleteQuiz: Successfully deleted quiz ${quizId}`);
     return true;
   } catch (error) {
-    console.error(`Error deleting quiz ${id}:`, error);
-    throw error;
+    console.error('[ERROR] deleteQuiz:', error);
+    return false;
   }
 }
 
 /**
  * Get a user by ID
- * @param {number} id - User ID
- * @returns {Promise<Object>} - Returns user object
+ * @param {string} userId - User ID
+ * @returns {Promise<Object|null>} - Returns user object or null if not found
  */
-async function getUser(id) {
+async function getUser(userId) {
   try {
+    if (!userId) {
+      console.error('[ERROR] getUser: Missing userId');
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('id', id)
+      .eq('id', userId)
       .single();
     
     if (error && error.code !== 'PGRST116') { // Ignore "no rows returned" error
-      throw error;
+      console.error(`[ERROR] getUser: ${error.message}`);
+      return null;
     }
     
     return data || null;
   } catch (error) {
-    console.error(`Error getting user ${id}:`, error);
+    console.error(`[ERROR] getUser ${userId}:`, error);
     return null;
   }
 }
 
 /**
- * Save a quiz response
- * @param {number} quizId - Quiz ID
- * @param {number} userId - User ID
- * @param {string} answers - JSON string of answers
- * @param {number} score - Score percentage
- * @returns {Promise<Object>} - Returns the saved response
+ * Get table (helper method for checking if a table exists)
+ * @param {string} query - SQL query to run
+ * @returns {Promise<boolean>} - Returns true if table exists
  */
-async function saveResponse(quizId, userId, answers, score) {
+async function getTable(query) {
   try {
-    const { data, error } = await supabase
-      .from('responses')
-      .insert({
-        quiz_id: quizId,
-        user_id: userId,
-        answers: answers ? JSON.parse(answers) : {},
-        score
-      })
-      .select()
-      .single();
+    // For Supabase, we need to use RPC to execute SQL
+    if (query) {
+      const { data, error } = await supabase.rpc('exec_sql', { sql: query });
+      
+      if (error) {
+        console.error('[ERROR] getTable:', error);
+        return false;
+      }
+      
+      return data && data.length > 0;
+    }
     
-    if (error) throw error;
-    return data;
+    // Default behavior for compatibility
+    return true;
   } catch (error) {
-    console.error('Error saving response:', error);
-    throw error;
+    console.error('[ERROR] getTable:', error);
+    return false;
   }
 }
 
 /**
- * Get quiz submissions
- * These are special-case functions to handle the complex queries in the original code
+ * Create table
+ * @param {string} query - SQL query to create the table
+ * @returns {Promise<boolean>} - Success status
  */
-async function getSubmissions(query, quizId) {
+async function createTable(query) {
   try {
-    // For now, we'll simplify this to just get responses for the quiz
-    // In a real implementation, we would create a more complex join in Postgres
-    const { data, error } = await supabase
-      .from('responses')
-      .select(`
-        *,
-        users:user_id (id, name, email)
-      `)
-      .eq('quiz_id', quizId)
-      .order('submitted_at', { ascending: false });
+    if (query) {
+      const { error } = await supabase.rpc('exec_sql', { sql: query });
+      
+      if (error) {
+        console.error('[ERROR] createTable:', error);
+        return false;
+      }
+    }
     
-    if (error) throw error;
-    
-    // Format response to match the expected structure
-    return data.map(item => ({
-      id: item.id,
-      quiz_id: item.quiz_id,
-      user_id: item.user_id,
-      user_name: item.users?.name || 'Anonymous',
-      user_email: item.users?.email || 'unknown',
-      answers: item.answers,
-      responses: item.answers,
-      score: item.score,
-      submitted_at: item.submitted_at
-    }));
+    return true;
   } catch (error) {
-    console.error(`Error getting submissions for quiz ${quizId}:`, error);
-    return [];
+    console.error('[ERROR] createTable:', error);
+    return false;
   }
-}
-
-/**
- * Legacy support function for table existence checks
- * Supabase doesn't need this, but keeping for API compatibility
- */
-async function getTable() {
-  // Tables always exist in Supabase since we created them in schema.sql
-  return true;
-}
-
-/**
- * Legacy support function for table creation
- * Supabase doesn't need this, but keeping for API compatibility
- */
-async function createTable() {
-  // Tables already exist in Supabase
-  return true;
 }
 
 /**
@@ -950,6 +946,110 @@ async function updateQuestion(questionId, data) {
   } catch (error) {
     console.error('[ERROR] updateQuestion:', error);
     return false;
+  }
+}
+
+/**
+ * Delete a question
+ * @param {string} questionId - The question ID to delete
+ * @returns {Promise<boolean>} - Success status
+ */
+async function deleteQuestion(questionId) {
+  try {
+    console.log(`[DEBUG] deleteQuestion: Deleting question with ID ${questionId}`);
+    
+    if (!questionId) {
+      console.error('[ERROR] deleteQuestion: Missing questionId');
+      return false;
+    }
+    
+    const { error } = await supabase
+      .from('questions')
+      .delete()
+      .eq('id', questionId);
+    
+    if (error) {
+      console.error('[ERROR] deleteQuestion:', error);
+      return false;
+    }
+    
+    console.log(`[DEBUG] deleteQuestion: Successfully deleted question ${questionId}`);
+    return true;
+  } catch (error) {
+    console.error('[ERROR] deleteQuestion:', error);
+    return false;
+  }
+}
+
+/**
+ * Get a user by email
+ * @param {string} email - User email
+ * @returns {Promise<Object|null>} - Returns user object or null if not found
+ */
+async function getUserByEmail(email) {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('email', email)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') { // Ignore "no rows returned" error
+      throw error;
+    }
+    
+    return data || null;
+  } catch (error) {
+    console.error(`Error getting user by email ${email}:`, error);
+    return null;
+  }
+}
+
+/**
+ * Create a new user
+ * @param {string} email - User email
+ * @param {string} name - User name
+ * @returns {Promise<Object>} - Returns the created user
+ */
+async function createUser(email, name) {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .insert({
+        email,
+        name
+      })
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error('Error creating user:', error);
+    throw error;
+  }
+}
+
+/**
+ * Update a user
+ * @param {number} id - User ID
+ * @param {Object} updates - Updates to apply to the user
+ * @returns {Promise<Object>} - Returns the updated user
+ */
+async function updateUser(id, updates) {
+  try {
+    const { data, error } = await supabase
+      .from('users')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  } catch (error) {
+    console.error(`Error updating user ${id}:`, error);
+    throw error;
   }
 }
 
