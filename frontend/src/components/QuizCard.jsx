@@ -21,6 +21,8 @@ import {
 import DeleteQuizModal from './DeleteQuizModal';
 import ShareByEmailModal from './ShareByEmailModal';
 
+const defaultImage = 'https://placehold.co/600x400/e9e9e9/5d5d5d?text=Quiz+Image';
+
 const QuizCard = ({ quiz, onStatusChange, isListView }) => {
   const navigate = useNavigate();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
@@ -95,442 +97,415 @@ const QuizCard = ({ quiz, onStatusChange, isListView }) => {
       // Update the state
       setParsedSettings(parsedSettings);
       
-      // Force a refresh of the access code display
-      if (access_code) {
-        setTimeout(() => {
-          const codeDisplay = document.getElementById(`access-code-${id}`);
-          if (codeDisplay) {
-            codeDisplay.textContent = access_code;
-          }
-        }, 100);
-      }
-    } catch (e) {
-      logger.error('Error processing settings for quiz', id, ':', e);
-      setParsedSettings({});
+    } catch (err) {
+      logger.error('Error parsing settings for quiz:', id, err);
     }
-  }, [id, quiz, settings, access_code]);
+  }, [quiz, settings, id, title]);
 
-  // Capitalize first letter of title and description
-  const capitalizeFirstLetter = (str) => {
-    if (!str) return '';
-    return str.charAt(0).toUpperCase() + str.slice(1);
-  };
-
-  // Get formatted settings values with improved debugging
-  const getDuration = () => {
-    logger.info('Getting duration for quiz', id, ':', parsedSettings?.duration, parsedSettings?.timeUnit);
-    
-    // Check parsedSettings first
-    if (parsedSettings?.duration) {
-      const unit = parsedSettings.timeUnit || 'minutes';
-      return `${parsedSettings.duration} ${unit}`;
-    }
-    
-    // Then check direct quiz properties
-    if (quiz.duration) {
-      const unit = quiz.timeUnit || 'minutes';
-      return `${quiz.duration} ${unit}`;
-    }
-    
-    return 'Duration not set';
-  };
-
-  const getDifficulty = () => {
-    logger.info('Getting difficulty for quiz', id, ':', parsedSettings?.difficulty);
-    
-    // Check parsedSettings first
-    if (parsedSettings?.difficulty) {
-      return capitalizeFirstLetter(parsedSettings.difficulty);
-    }
-    
-    // Then check direct quiz property
-    if (quiz.difficulty) {
-      return capitalizeFirstLetter(quiz.difficulty);
-    }
-    
-    return 'Difficulty not set';
-  };
-
-  const getCategory = () => {
-    logger.info('Getting category for quiz', id, ':', parsedSettings?.category);
-    
-    // Check parsedSettings first
-    if (parsedSettings?.category) {
-      return capitalizeFirstLetter(parsedSettings.category);
-    }
-    
-    // Then check direct quiz property
-    if (quiz.category) {
-      return capitalizeFirstLetter(quiz.category);
-    }
-    
-    return 'Subject not set';
+  // Helper functions for formatting
+  const capitalizeFirstLetter = (string) => {
+    if (!string) return '';
+    return string.charAt(0).toUpperCase() + string.slice(1);
   };
 
   const getSubject = () => {
-    logger.info('Getting subject for quiz', id, ':', parsedSettings?.subject);
-    
-    // Check parsedSettings first
-    if (parsedSettings?.subject) {
-      return capitalizeFirstLetter(parsedSettings.subject);
-    }
-    
-    // Then check direct quiz properties
-    if (quiz.subject) {
-      return capitalizeFirstLetter(quiz.subject);
-    }
-    
-    return 'Subject not set';
+    return parsedSettings?.subject || parsedSettings?.category || category || subject || 'Subject not set';
+  };
+
+  const getDuration = () => {
+    const time = parsedSettings?.duration || duration || timeLimit || 0;
+    const unit = parsedSettings?.timeUnit || timeUnit || 'minutes';
+    return `${time} ${unit}`;
+  };
+
+  const getDifficulty = () => {
+    return parsedSettings?.difficulty || difficulty || complexity || 'Medium';
   };
 
   // Fix image URL rendering with our utility function
   const getCardImageUrl = () => {
-    // For list view, don't return any image URL
-    if (isListView) {
-      return null;
-    }
-    
     // Parse settings if it's a string
     let settings = quiz.settings;
     if (typeof settings === 'string' && settings) {
       try {
         settings = JSON.parse(settings);
       } catch (e) {
-        logger.error('Error parsing quiz settings:', e);
-        settings = {};
+        logger.error('Failed to parse settings string:', e);
       }
     }
 
-    // Use a publicly available placeholder image instead of a local one that doesn't exist on Render
-    const defaultImage = 'https://placehold.co/600x400/e9e9e9/5d5d5d?text=Quiz+Image';
-    
-    // Use our new utility for consistent URL formatting
     const imageUrlToUse = quiz.image_url || 
-                         quiz.imageUrl || 
-                         quiz.image || 
-                         (settings && settings.imageUrl) || 
-                         defaultImage;
+                          quiz.imageUrl || 
+                          quiz.image || 
+                          (settings && settings.imageUrl) || 
+                          defaultImage;
     
-    // Don't run the URL through getImageUrl if it's our default placeholder
-    return imageUrlToUse === defaultImage ? imageUrlToUse : getImageUrl(imageUrlToUse);
-  };
-
-  // Get quiz access code from wherever it might be stored
-  const getAccessCode = () => {
-    // Check all possible locations for the access code
-    return access_code || 
-           (parsedSettings && parsedSettings.accessCode) || 
-           quiz.access_code || 
-           (quiz.settings && typeof quiz.settings === 'object' && quiz.settings.accessCode) ||
-           (quiz.settings && typeof quiz.settings === 'string' && 
-             (() => {
-               try {
-                 return JSON.parse(quiz.settings).accessCode;
-               } catch (e) {
-                 return null;
-               }
-             })()
-           );
-  };
-
-  // Generate the shareable URL for the quiz
-  const getQuizUrl = () => {
-    const quizCode = getAccessCode();
-    logger.info('getQuizUrl for quiz ID ' + id + ':', { quizCode, status });
-    if (!quizCode || status !== 'published') return null;
+    if (!imageUrlToUse) return defaultImage;
     
-    // Get base URL (works in production and development)
-    const baseUrl = window.location.origin;
-    // Fix: Use the correct route path that matches App.jsx
-    return `${baseUrl}/quiz/${quizCode}`;
-  };
-
-  // Handle status change
-  const handleStatusChange = async (action) => {
-    try {
-      setIsLoading(true);
-      
-      if (action === 'publish') {
-        logger.info(`Publishing quiz ${id}...`);
-        
-        // Use the proper API endpoint
-        const response = await quizzes.publish(id);
-        logger.info('Publish result:', response);
-        
-        // Extract the quiz data from the response
-        const updatedQuiz = response.data?.quiz || {};
-        
-        // Update the parent component with the new quiz data
-        if (onStatusChange) {
-          onStatusChange({
-            ...quiz,
-            status: 'published',
-            settings: updatedQuiz.settings || parsedSettings,
-            published_at: updatedQuiz.published_at || new Date().toISOString()
-          });
-        }
-        
-        // Show success message
-        toast.success('Quiz published successfully');
-      } else if (action === 'pause') {
-        const response = await quizzes.pause(id);
-        if (response.data?.success) {
-          toast.success('Quiz paused successfully');
-        } else {
-          throw new Error('Failed to pause quiz');
-        }
-      }
-      // Notify parent component to refresh quiz list
-      if (onStatusChange) {
-        onStatusChange();
-      }
-    } catch (error) {
-      logger.error('Error updating quiz status:', error);
-      toast.error(error.response?.data?.error || 'Failed to update quiz status');
-    } finally {
-      setIsLoading(false);
+    // If it's already a full URL, return it as is
+    if (imageUrlToUse.startsWith('http')) {
+      return imageUrlToUse;
     }
-  };
-
-  // Handle delete
-  const handleDelete = async () => {
-    try {
-      setIsLoading(true);
-      const response = await quizzes.delete(id);
-      if (response.data?.success) {
-        toast.success('Quiz deleted successfully');
-        setIsDeleteModalOpen(false);
-        if (onStatusChange) {
-          onStatusChange();
-        }
-      } else {
-        throw new Error('Failed to delete quiz');
-      }
-    } catch (error) {
-      logger.error('Error deleting quiz:', error);
-      toast.error(error.response?.data?.error || 'Failed to delete quiz');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Copy access code or URL to clipboard
-  const copyToClipboard = (text, type) => {
-    if (!text) return;
     
-    navigator.clipboard.writeText(text)
+    // Otherwise, it's a path, so resolve it
+    return `/assets/images/${imageUrlToUse}`;
+  };
+
+  const handleCopy = (type, value) => {
+    if (!value) {
+      toast.error(`No ${type} available to copy`);
+      return;
+    }
+    
+    navigator.clipboard.writeText(value)
       .then(() => {
-        // Set copied state for this type
-        setCopied({...copied, [type]: true});
-        
-        // Reset after 2 seconds
+        setCopied(prev => ({ ...prev, [type]: true }));
+        toast.success(`${capitalizeFirstLetter(type)} copied to clipboard!`);
         setTimeout(() => {
-          setCopied({...copied, [type]: false});
+          setCopied(prev => ({ ...prev, [type]: false }));
         }, 2000);
-        
-        toast.success(`${type === 'code' ? 'Access code' : 'Quiz URL'} copied to clipboard`);
       })
       .catch(err => {
-        logger.error('Failed to copy:', err);
+        logger.error('Failed to copy to clipboard:', err);
         toast.error('Failed to copy to clipboard');
       });
   };
 
-  // Debug what we actually have for settings, status, and access code
-  React.useEffect(() => {
-    logger.info('Quiz card data for ID ' + id + ':', {
-      status,
-      accessCode: access_code, 
-      settingsAccessCode: parsedSettings?.accessCode,
-      settings: parsedSettings
-    });
-  }, [id, status, access_code, parsedSettings]);
+  const getQuizUrl = () => {
+    const accessCode = parsedSettings?.accessCode || access_code;
+    if (!accessCode) return '';
+    
+    return `${window.location.origin}/quiz/${accessCode}`;
+  };
 
-  return (
-    <>
-      <article 
-        className={`group relative ${isListView ? 'flex gap-4 items-center' : 'h-full'}`}
-        aria-label={`Quiz: ${title}`}
-      >
-        {/* Quiz Status Indicator */}
-        <div className="absolute right-0 top-0 z-10 p-2">
-          <span 
-            className={`inline-flex px-2 py-1 text-xs font-medium rounded-full
-              ${status === 'published' ? 'bg-green-100 text-green-800' : 
-                status === 'draft' ? 'bg-amber-100 text-amber-800' : 
-                'bg-slate-100 text-slate-800'}`}
-          >
-            {status === 'published' ? 'Published' : 
-             status === 'draft' ? 'Draft' : 'Archived'}
-          </span>
-        </div>
+  const toggleQuizStatus = async () => {
+    try {
+      setIsLoading(true);
+      
+      const newStatus = status === 'published' ? 'archived' : 'published';
+      
+      await quizzes.updateQuizStatus(id, newStatus);
+      
+      toast.success(`Quiz ${newStatus === 'published' ? 'published' : 'archived'} successfully`);
+      
+      if (onStatusChange) {
+        onStatusChange();
+      }
+      
+    } catch (error) {
+      logger.error('Error toggling quiz status:', error);
+      toast.error('Failed to update quiz status');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-        {/* Quiz Image or Icon */}
-        {isListView ? (
+  const shareViaEmail = () => {
+    setIsShareByEmailModalOpen(true);
+  };
+
+  const handleDeleteQuiz = () => {
+    setIsDeleteModalOpen(true);
+  };
+
+  // Render different card layouts based on isListView prop
+  if (isListView) {
+    // LIST VIEW
+    return (
+      <>
+        <div className="flex items-center gap-4">
+          {/* Quiz Icon */}
           <div className="flex-shrink-0 w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center">
             <BookOpenIcon className="w-6 h-6 text-slate-600" />
           </div>
-        ) : (
-          <div 
-            className="relative mb-4 w-full aspect-video rounded-xl overflow-hidden bg-slate-100"
-          >
+          
+          {/* Quiz Content */}
+          <div className="flex-grow">
+            <h3 className="font-semibold text-gray-900">
+              {capitalizeFirstLetter(title)}
+            </h3>
+            {description && (
+              <p className="text-sm text-gray-600 line-clamp-1">
+                {capitalizeFirstLetter(description)}
+              </p>
+            )}
+          </div>
+          
+          {/* Quick Stats */}
+          <div className="flex items-center gap-4 text-sm text-gray-600">
+            <div className="flex items-center gap-1">
+              <QuestionMarkCircleIcon className="w-4 h-4" />
+              <span>{questions?.length || 0}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <ClockIcon className="w-4 h-4" />
+              <span>{parsedSettings?.duration || duration || timeLimit || 10} min</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <AcademicCapIcon className="w-4 h-4" />
+              <span>{getDifficulty()}</span>
+            </div>
+          </div>
+          
+          {/* Status Badge */}
+          <div>
+            <span 
+              className={`inline-flex px-2 py-1 text-xs font-medium rounded-full
+                ${status === 'published' ? 'bg-green-100 text-green-800' : 
+                  status === 'draft' ? 'bg-amber-100 text-amber-800' : 
+                  'bg-slate-100 text-slate-800'}`}
+            >
+              {status === 'published' ? 'Published' : 
+                status === 'draft' ? 'Draft' : 'Archived'}
+            </span>
+          </div>
+          
+          {/* Menu */}
+          <div>
+            <Menu as="div" className="relative inline-block text-left">
+              <Menu.Button className="p-2 rounded-full hover:bg-gray-100">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                </svg>
+              </Menu.Button>
+              
+              <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right bg-white border border-gray-200 divide-y divide-gray-100 rounded-md shadow-lg z-10">
+                <div className="px-1 py-1">
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={() => navigate(`/quiz/${id}/view`)}
+                        className={`${
+                          active ? 'bg-gray-100' : ''
+                        } group flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-900`}
+                      >
+                        <EyeIcon className="w-4 h-4 mr-2 text-gray-500" />
+                        View Details
+                      </button>
+                    )}
+                  </Menu.Item>
+                  
+                  {status === 'published' && (
+                    <Menu.Item>
+                      {({ active }) => (
+                        <button
+                          onClick={toggleQuizStatus}
+                          disabled={isLoading}
+                          className={`${
+                            active ? 'bg-gray-100' : ''
+                          } group flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-900`}
+                        >
+                          <PauseIcon className="w-4 h-4 mr-2 text-gray-500" />
+                          Archive Quiz
+                        </button>
+                      )}
+                    </Menu.Item>
+                  )}
+                  
+                  {status !== 'published' && (
+                    <Menu.Item>
+                      {({ active }) => (
+                        <button
+                          onClick={toggleQuizStatus}
+                          disabled={isLoading}
+                          className={`${
+                            active ? 'bg-gray-100' : ''
+                          } group flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-900`}
+                        >
+                          <PlayIcon className="w-4 h-4 mr-2 text-gray-500" />
+                          Publish Quiz
+                        </button>
+                      )}
+                    </Menu.Item>
+                  )}
+                  
+                  {status === 'published' && (
+                    <Menu.Item>
+                      {({ active }) => (
+                        <button
+                          onClick={shareViaEmail}
+                          className={`${
+                            active ? 'bg-gray-100' : ''
+                          } group flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-900`}
+                        >
+                          <EnvelopeIcon className="w-4 h-4 mr-2 text-gray-500" />
+                          Share by Email
+                        </button>
+                      )}
+                    </Menu.Item>
+                  )}
+                </div>
+                
+                <div className="px-1 py-1">
+                  <Menu.Item>
+                    {({ active }) => (
+                      <button
+                        onClick={handleDeleteQuiz}
+                        className={`${
+                          active ? 'bg-gray-100' : ''
+                        } group flex w-full items-center rounded-md px-2 py-2 text-sm text-red-600`}
+                      >
+                        <TrashIcon className="w-4 h-4 mr-2 text-red-500" />
+                        Delete Quiz
+                      </button>
+                    )}
+                  </Menu.Item>
+                </div>
+              </Menu.Items>
+            </Menu>
+          </div>
+        </div>
+        
+        {/* Modals */}
+        <DeleteQuizModal
+          isOpen={isDeleteModalOpen}
+          onClose={() => setIsDeleteModalOpen(false)}
+          onDelete={async () => {
+            try {
+              await quizzes.deleteQuiz(id);
+              toast.success('Quiz deleted successfully');
+              if (onStatusChange) {
+                onStatusChange();
+              }
+            } catch (error) {
+              logger.error('Error deleting quiz:', error);
+              toast.error('Failed to delete quiz');
+            }
+          }}
+        />
+        
+        <ShareByEmailModal
+          isOpen={isShareByEmailModalOpen}
+          onClose={() => setIsShareByEmailModalOpen(false)}
+          quizTitle={title}
+          quizId={id}
+          accessCode={parsedSettings?.accessCode || access_code}
+        />
+      </>
+    );
+  }
+  
+  // GRID VIEW
+  return (
+    <>
+      <div className="bg-white rounded-lg overflow-hidden border border-gray-200">
+        {/* Card Header - Image and Menu */}
+        <div className="relative">
+          <div className="aspect-[16/9] overflow-hidden rounded-t-xl">
             <img 
               src={getCardImageUrl()} 
               alt={title} 
               className="w-full h-full object-cover"
               onError={(e) => {
+                logger.error('Failed to load image:', getCardImageUrl());
                 e.target.src = 'https://placehold.co/600x400/e9e9e9/5d5d5d?text=Quiz+Image';
               }}
             />
-          </div>
-        )}
-
-        {/* Quiz Content */}
-        <div className={`flex flex-col ${isListView ? 'flex-1' : ''}`}>
-          {/* Quiz Title and Menu */}
-          <div className="flex items-start justify-between mb-2">
-            <div className={`${isListView ? 'w-3/4' : 'w-full'}`}>
-              <h3 className="font-semibold text-slate-900 group-hover:text-[#06545E] line-clamp-2">
-                {title}
-              </h3>
-              {!isListView && (
-                <p className="text-sm text-slate-600 line-clamp-2 mt-1">
-                  {description || 'No description provided'}
-                </p>
+            
+            {/* Status Badge - Overlay on image */}
+            <div className="absolute top-3 left-3">
+              {status === 'published' ? (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-primary border border-gray-200">
+                  <span className="relative flex h-2 w-2 mr-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/60 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                  </span>
+                  Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
+                  Draft
+                </span>
               )}
             </div>
-            
-            {/* Quick Stats (Only show in list view) */}
-            {isListView && (
-              <div className="flex items-center gap-4 text-xs text-slate-600 ml-auto mr-4">
-                <div className="flex items-center gap-1">
-                  <QuestionMarkCircleIcon className="w-4 h-4" />
-                  <span>{questions.length || 0}</span>
-                </div>
-                
-                <div className="flex items-center gap-1">
-                  <ClockIcon className="w-4 h-4" />
-                  <span>{parsedSettings.duration || 10} min</span>
-                </div>
-                
-                <div className="flex items-center gap-1">
-                  <AcademicCapIcon className="w-4 h-4" />
-                  <span>{parsedSettings.difficulty || 'Medium'}</span>
-                </div>
-              </div>
-            )}
             
             {/* Options Menu */}
             <div className="absolute top-3 right-3">
               <Menu as="div" className="relative inline-block text-left">
-                <Menu.Button className="inline-flex items-center px-2 py-1 bg-white rounded-full shadow-sm hover:bg-gray-50 transition-colors">
-                  <svg className="w-5 h-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h.01M12 12h.01M19 12h.01M6 12a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0zm7 0a1 1 0 11-2 0 1 1 0 012 0z" />
+                <Menu.Button className="p-2 rounded-full bg-white/80 hover:bg-white shadow-sm">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
                   </svg>
                 </Menu.Button>
-                <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right divide-y divide-gray-100 rounded-md bg-white shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-10">
+                
+                <Menu.Items className="absolute right-0 mt-2 w-48 origin-top-right bg-white border border-gray-200 divide-y divide-gray-100 rounded-md shadow-lg z-10">
                   <div className="px-1 py-1">
                     <Menu.Item>
                       {({ active }) => (
-                        <Link
-                          to={status === 'published' && (access_code || parsedSettings?.accessCode) ? `/quiz/${access_code || parsedSettings?.accessCode}/view` : '#'}
+                        <button
+                          onClick={() => navigate(`/quiz/${id}/view`)}
                           className={`${
                             active ? 'bg-gray-100' : ''
-                          } group flex w-full items-center rounded-md px-2 py-2 text-sm ${
-                            (!access_code && !parsedSettings?.accessCode) || status !== 'published' ? 'text-gray-400 cursor-not-allowed' : ''
-                          }`}
-                          onClick={(e) => {
-                            if ((!access_code && !parsedSettings?.accessCode) || status !== 'published') {
-                              e.preventDefault();
-                              toast.error('Quiz not available for viewing');
-                            } else {
-                              logger.info('Navigating to quiz view with code:', access_code || parsedSettings?.accessCode);
-                            }
-                          }}
+                          } group flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-900`}
                         >
-                          <EyeIcon className="w-5 h-5 mr-2" />
-                          View Quiz
-                        </Link>
+                          <EyeIcon className="w-4 h-4 mr-2 text-gray-500" />
+                          View Details
+                        </button>
                       )}
                     </Menu.Item>
-                    {status === 'published' ? (
-                      <Menu.Item disabled={isLoading}>
+                    
+                    {status === 'published' && (
+                      <Menu.Item>
                         {({ active }) => (
                           <button
-                            onClick={() => handleStatusChange('pause')}
+                            onClick={toggleQuizStatus}
+                            disabled={isLoading}
                             className={`${
                               active ? 'bg-gray-100' : ''
-                            } group flex w-full items-center rounded-md px-2 py-2 text-sm ${
-                              isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
+                            } group flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-900`}
                           >
-                            <PauseIcon className="w-5 h-5 mr-2" />
-                            {isLoading ? 'Pausing...' : 'Pause Quiz'}
-                          </button>
-                        )}
-                      </Menu.Item>
-                    ) : (
-                      <Menu.Item disabled={isLoading}>
-                        {({ active }) => (
-                          <button
-                            onClick={() => handleStatusChange('publish')}
-                            className={`${
-                              active ? 'bg-gray-100' : ''
-                            } group flex w-full items-center rounded-md px-2 py-2 text-sm ${
-                              isLoading ? 'opacity-50 cursor-not-allowed' : ''
-                            }`}
-                          >
-                            <PlayIcon className="w-5 h-5 mr-2" />
-                            {isLoading ? 'Publishing...' : 'Publish Quiz'}
+                            <PauseIcon className="w-4 h-4 mr-2 text-gray-500" />
+                            Archive Quiz
                           </button>
                         )}
                       </Menu.Item>
                     )}
-                    {/* View Submissions (Only for published quizzes) */}
-                    <Menu.Item>
-                      {({ active }) => (
-                        <Link
-                          to={status === 'published' ? `/quiz/${id}/submissions` : '#'}
-                          className={`${
-                            active ? 'bg-gray-100' : ''
-                          } group flex w-full items-center rounded-md px-2 py-2 text-sm ${
-                            status !== 'published' ? 'text-gray-400 cursor-not-allowed' : ''
-                          }`}
-                          onClick={(e) => {
-                            if (status !== 'published') {
-                              e.preventDefault();
-                              toast.error('No submissions available for unpublished quizzes');
-                            }
-                          }}
-                        >
-                          <BookOpenIcon className="w-5 h-5 mr-2" />
-                          View Submissions
-                        </Link>
-                      )}
-                    </Menu.Item>
+                    
+                    {status !== 'published' && (
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button
+                            onClick={toggleQuizStatus}
+                            disabled={isLoading}
+                            className={`${
+                              active ? 'bg-gray-100' : ''
+                            } group flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-900`}
+                          >
+                            <PlayIcon className="w-4 h-4 mr-2 text-gray-500" />
+                            Publish Quiz
+                          </button>
+                        )}
+                      </Menu.Item>
+                    )}
+                    
+                    {status === 'published' && (
+                      <Menu.Item>
+                        {({ active }) => (
+                          <button
+                            onClick={shareViaEmail}
+                            className={`${
+                              active ? 'bg-gray-100' : ''
+                            } group flex w-full items-center rounded-md px-2 py-2 text-sm text-gray-900`}
+                          >
+                            <EnvelopeIcon className="w-4 h-4 mr-2 text-gray-500" />
+                            Share by Email
+                          </button>
+                        )}
+                      </Menu.Item>
+                    )}
+                  </div>
+                  
+                  <div className="px-1 py-1">
                     <Menu.Item>
                       {({ active }) => (
                         <button
-                          onClick={() => setIsDeleteModalOpen(true)}
+                          onClick={handleDeleteQuiz}
                           className={`${
-                            active ? 'bg-red-50' : ''
+                            active ? 'bg-gray-100' : ''
                           } group flex w-full items-center rounded-md px-2 py-2 text-sm text-red-600`}
                         >
-                          <TrashIcon className="w-5 h-5 mr-2" />
+                          <TrashIcon className="w-4 h-4 mr-2 text-red-500" />
                           Delete Quiz
-                        </button>
-                      )}
-                    </Menu.Item>
-                    <Menu.Item>
-                      {({ active }) => (
-                        <button
-                          onClick={() => setIsShareByEmailModalOpen(true)}
-                          className={`${
-                            active ? 'bg-gray-100' : ''
-                          } group flex w-full items-center rounded-md px-2 py-2 text-sm`}
-                        >
-                          <EnvelopeIcon className="w-5 h-5 mr-2" />
-                          Share via Email
                         </button>
                       )}
                     </Menu.Item>
@@ -539,96 +514,118 @@ const QuizCard = ({ quiz, onStatusChange, isListView }) => {
               </Menu>
             </div>
           </div>
+        </div>
+        
+        {/* Card Content */}
+        <div className="p-4">
+          {/* Card Title */}
+          <h3 className="font-semibold text-gray-900 mb-1">
+            {capitalizeFirstLetter(title)}
+          </h3>
+          
+          {/* Card Description - Optional */}
+          {description && (
+            <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+              {capitalizeFirstLetter(description)}
+            </p>
+          )}
           
           {/* Card Stats Grid */}
-          {!isListView && (
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              <div className="flex items-center">
-                <BookOpenIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-                <span className={`text-sm ${!getSubject() || getSubject() === 'Subject not set' ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
-                  {getSubject()}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <QuestionMarkCircleIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-                <span className="text-sm text-gray-800 font-medium">
-                  {questions.length || 0} Questions
-                </span>
-              </div>
-              <div className="flex items-center">
-                <ClockIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-                <span className={`text-sm ${!parsedSettings?.duration ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
-                  {getDuration()}
-                </span>
-              </div>
-              <div className="flex items-center">
-                <AcademicCapIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-                <span className={`text-sm ${!parsedSettings?.difficulty ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
-                  {getDifficulty()}
-                </span>
-              </div>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div className="flex items-center">
+              <BookOpenIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+              <span className={`text-sm ${!getSubject() || getSubject() === 'Subject not set' ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
+                {getSubject()}
+              </span>
             </div>
-          )}
+            <div className="flex items-center">
+              <QuestionMarkCircleIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+              <span className="text-sm text-gray-800 font-medium">
+                {questions.length || 0} Questions
+              </span>
+            </div>
+            <div className="flex items-center">
+              <ClockIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+              <span className={`text-sm ${!parsedSettings?.duration ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
+                {getDuration()}
+              </span>
+            </div>
+            <div className="flex items-center">
+              <AcademicCapIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+              <span className={`text-sm ${!parsedSettings?.difficulty ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
+                {getDifficulty()}
+              </span>
+            </div>
+          </div>
           
           {/* Sharing Section - Only show for published quizzes */}
           {status === 'published' && (parsedSettings?.accessCode || access_code) && (
-            <div className="mt-5">
-              <div className="border-t border-gray-100 pt-4">
-                <h4 className="text-sm font-medium text-gray-700 mb-2">Share with learners:</h4>
-                
-                <div className="flex flex-col gap-3">
-                  {/* Copy URL Button */}
+            <div className="border-t border-gray-100 mt-3 pt-3">
+              <div className="mb-2">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <button
-                      onClick={() => copyToClipboard(`${window.location.origin}/quiz/${access_code || parsedSettings?.accessCode}`, 'url')}
-                      className="text-white bg-teal-600 hover:bg-teal-700 inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-                    >
-                      <LinkIcon className="w-4 h-4 mr-1.5" />
-                      {copied.url ? 'Copied!' : 'Copy URL'}
-                    </button>
-                    
-                    {/* Email Share Button */}
-                    <button
-                      onClick={() => setIsShareByEmailModalOpen(true)}
-                      className="ml-2 text-white bg-teal-600 hover:bg-teal-700 inline-flex items-center rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
-                    >
-                      <EnvelopeIcon className="w-4 h-4 mr-1.5" />
-                      Email
-                    </button>
+                    <ClipboardDocumentIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+                    <span className="text-sm text-gray-800 font-medium">Access Code</span>
                   </div>
-                  
-                  {/* Access Code Display */}
-                  <div className="flex items-center gap-2">
-                    <div className="text-sm text-gray-500">Code:</div>
-                    <div className="bg-gray-50 rounded px-2 py-1 text-sm font-medium font-mono text-gray-800 flex-grow" id={`access-code-${id}`}>
-                      {access_code || parsedSettings?.accessCode || 'Processing...'}
-                    </div>
-                    <button
-                      onClick={() => copyToClipboard(access_code || parsedSettings?.accessCode, 'code')}
-                      className="text-primary hover:text-primary-dark p-1 rounded-md hover:bg-gray-100"
-                      title="Copy access code"
-                    >
-                      <ClipboardDocumentIcon className="w-4 h-4" />
-                    </button>
+                  <button
+                    onClick={() => handleCopy('code', parsedSettings?.accessCode || access_code)}
+                    className="text-xs text-primary hover:text-primary-dark"
+                  >
+                    {copied.code ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+                <div className="mt-1 text-sm font-mono bg-gray-50 p-1.5 rounded border border-gray-200 text-gray-800">
+                  <code id={`access-code-${id}`}>
+                    {parsedSettings?.accessCode || access_code || 'No access code available'}
+                  </code>
+                </div>
+              </div>
+              
+              <div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <LinkIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+                    <span className="text-sm text-gray-800 font-medium">Share Link</span>
                   </div>
+                  <button
+                    onClick={() => handleCopy('url', getQuizUrl())}
+                    className="text-xs text-primary hover:text-primary-dark"
+                  >
+                    {copied.url ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+                <div className="mt-1 text-sm font-mono bg-gray-50 p-1.5 rounded border border-gray-200 text-gray-800 truncate">
+                  <code>{getQuizUrl() || 'No share URL available'}</code>
                 </div>
               </div>
             </div>
           )}
         </div>
-      </article>
+      </div>
 
       <DeleteQuizModal
         isOpen={isDeleteModalOpen}
         onClose={() => setIsDeleteModalOpen(false)}
-        onConfirm={handleDelete}
-        title={title}
-        isLoading={isLoading}
+        onDelete={async () => {
+          try {
+            await quizzes.deleteQuiz(id);
+            toast.success('Quiz deleted successfully');
+            if (onStatusChange) {
+              onStatusChange();
+            }
+          } catch (error) {
+            logger.error('Error deleting quiz:', error);
+            toast.error('Failed to delete quiz');
+          }
+        }}
       />
+      
       <ShareByEmailModal
         isOpen={isShareByEmailModalOpen}
         onClose={() => setIsShareByEmailModalOpen(false)}
-        quiz={quiz}
+        quizTitle={title}
+        quizId={id}
+        accessCode={parsedSettings?.accessCode || access_code}
       />
     </>
   );
