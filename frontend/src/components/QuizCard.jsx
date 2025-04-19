@@ -54,16 +54,29 @@ const QuizCard = ({ quiz, onStatusChange, isListView }) => {
   // Parse settings on component mount or when quiz/settings change
   useEffect(() => {
     try {
-      logger.info('Quiz ID:', id, 'Title:', title, 'Settings type:', typeof settings);
+      // Log the received data for debugging
+      logger.info('Processing quiz data:', {
+        id,
+        title,
+        settings: typeof settings === 'string' ? 'string (will parse)' : typeof settings,
+        direct_fields: {
+          subject,
+          category,
+          duration,
+          timeLimit,
+          difficulty,
+          complexity
+        }
+      });
       
       // Always initialize with direct properties from quiz object
       const initialSettings = {
-        subject: quiz.subject || quiz.category || 'General',
-        category: quiz.category || quiz.subject || 'General',
-        duration: quiz.duration || quiz.timeLimit || 10,
-        timeUnit: quiz.timeUnit || 'minutes',
-        difficulty: quiz.difficulty || quiz.complexity || 'Medium',
-        accessCode: quiz.access_code
+        subject: subject || category || 'General',
+        category: category || subject || 'General',
+        duration: duration || timeLimit || 10,
+        timeUnit: timeUnit || 'minutes',
+        difficulty: difficulty || complexity || 'Medium',
+        accessCode: access_code
       };
       
       // Try parsing settings from string if needed
@@ -81,26 +94,31 @@ const QuizCard = ({ quiz, onStatusChange, isListView }) => {
       } else if (settings && typeof settings === 'object') {
         // Settings is already an object, merge with initial settings
         parsedSettings = {...initialSettings, ...settings};
-        logger.info('Using object settings for quiz:', id);
       }
       
-      // Debug log the actual values we're working with
-      logger.info('Final parsed settings for quiz', id, ':' , {
-        subject: parsedSettings.subject,
-        category: parsedSettings.category,
-        duration: parsedSettings.duration,
-        timeUnit: parsedSettings.timeUnit,
-        difficulty: parsedSettings.difficulty,
-        accessCode: parsedSettings.accessCode
-      });
+      // Ensure we have sensible defaults/values for common fields
+      parsedSettings.subject = parsedSettings.subject || parsedSettings.category || 'General';
+      parsedSettings.category = parsedSettings.category || parsedSettings.subject || 'General';
+      parsedSettings.duration = Number(parsedSettings.duration || 10);
+      parsedSettings.timeUnit = parsedSettings.timeUnit || 'minutes';
+      parsedSettings.difficulty = parsedSettings.difficulty || 'Medium';
       
-      // Update the state
+      // Debug log the actual values we're working with
+      logger.info('Final parsed settings for quiz', id, ':', parsedSettings);
+      
+      // Update the state with the properly parsed settings
       setParsedSettings(parsedSettings);
       
     } catch (err) {
       logger.error('Error parsing settings for quiz:', id, err);
+      // Set to empty object with defaults as fallback
+      setParsedSettings({
+        subject: subject || category || 'General',
+        duration: duration || timeLimit || 10,
+        difficulty: difficulty || complexity || 'Medium'
+      });
     }
-  }, [quiz, settings, id, title]);
+  }, [id, quiz, settings, access_code, subject, category, duration, timeLimit, difficulty, complexity, timeUnit]);
 
   // Helper functions for formatting
   const capitalizeFirstLetter = (string) => {
@@ -109,17 +127,26 @@ const QuizCard = ({ quiz, onStatusChange, isListView }) => {
   };
 
   const getSubject = () => {
-    return parsedSettings?.subject || parsedSettings?.category || category || subject || 'Subject not set';
+    const subjectValue = parsedSettings?.subject || 
+                        parsedSettings?.category || 
+                        subject || 
+                        category || 
+                        'General';
+    return capitalizeFirstLetter(subjectValue);
   };
 
   const getDuration = () => {
-    const time = parsedSettings?.duration || duration || timeLimit || 0;
+    const time = parsedSettings?.duration || duration || timeLimit || 10;
     const unit = parsedSettings?.timeUnit || timeUnit || 'minutes';
     return `${time} ${unit}`;
   };
 
   const getDifficulty = () => {
-    return parsedSettings?.difficulty || difficulty || complexity || 'Medium';
+    const difficultyValue = parsedSettings?.difficulty || 
+                           difficulty || 
+                           complexity || 
+                           'Medium';
+    return capitalizeFirstLetter(difficultyValue);
   };
 
   // Fix image URL rendering with our utility function
@@ -239,7 +266,7 @@ const QuizCard = ({ quiz, onStatusChange, isListView }) => {
             </div>
             <div className="flex items-center gap-1">
               <ClockIcon className="w-4 h-4" />
-              <span>{parsedSettings?.duration || duration || timeLimit || 10} min</span>
+              <span>{getDuration()}</span>
             </div>
             <div className="flex items-center gap-1">
               <AcademicCapIcon className="w-4 h-4" />
