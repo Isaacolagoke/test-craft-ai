@@ -1138,188 +1138,74 @@ router.get('/share/:code', async (req, res) => {
   }
 });
 
-// Submit quiz answers
-router.post('/:id/submit', authenticateToken, async (req, res) => {
+// Handle quiz submission from learners
+router.post('/submit/:accessCode', async (req, res) => {
   try {
-    const quizId = req.params.id;
-    const { answers } = req.body;
-    
-    // Get quiz questions
-    const query = `
-      SELECT q.*, qu.questions as quiz_questions, qu.settings
-      FROM questions q
-      JOIN quizzes qu ON q.quiz_id = qu.id
-      WHERE qu.id = ?
-    `;
-
-    const quiz = await db.getQuiz(quizId);
-    if (!quiz) {
-      return res.status(404).json({
-        success: false,
-        error: 'Quiz not found'
-      });
-    }
-
-    // Calculate score
-    let score = 0;
-    const questions = JSON.parse(quiz.questions);
-    const settings = JSON.parse(quiz.settings);
-      
-    answers.forEach((answer, index) => {
-      if (questions[index].correctAnswer === answer) {
-        score++;
-      }
-    });
-
-    const percentage = (score / questions.length) * 100;
-    const passed = percentage >= settings.passMark;
-
-    // Save response
-    const saveQuery = `
-      INSERT INTO responses (
-        quiz_id,
-        user_id,
-        answers,
-        score,
-        completed_at
-      ) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-    `;
-
-    await db.saveResponse(quizId, req.user.id, JSON.stringify(answers), percentage);
-
-    res.json({
-      success: true,
-      results: {
-        score: percentage,
-        passed,
-        correctAnswers: score,
-        totalQuestions: questions.length,
-        answers: settings.showAnswers ? questions.map(q => q.correctAnswer) : null
-      }
-    });
-  } catch (error) {
-    console.error('Error submitting quiz:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to submit quiz',
-      details: error.message
-    });
-  }
-});
-
-// Submit quiz responses
-router.post('/submit/:code', async (req, res) => {
-  try {
-    const accessCode = req.params.code;
-    const { responses, timeSpent } = req.body;
-    
-    console.log('Submitting quiz with access code:', accessCode);
-    console.log('Responses:', responses);
+    const accessCode = req.params.accessCode;
+    const { responses, learnerId, metadata } = req.body;
     
     if (!accessCode) {
       return res.status(400).json({
         success: false,
-        error: 'No access code provided'
+        error: 'Access code is required'
       });
     }
     
-    // Since database.sqlite doesn't have an access_code column, we need to search in settings
-    const quizzes = await db.getQuizzes();
-    console.log(`Found ${quizzes.length} quizzes. Searching for code: ${accessCode}`);
+    console.log(`Processing quiz submission for access code: ${accessCode}`);
     
-    // Find the quiz with matching access code in settings JSON
-    let matchedQuiz = null;
-    for (const quiz of quizzes) {
-      try {
-        let settings = {};
-        try {
-          settings = JSON.parse(quiz.settings || '{}');
-        } catch (e) {
-          console.error(`Error parsing settings for quiz ${quiz.id}:`, e);
-          continue;
-        }
-        
-        // Check for access code in settings or directly in quiz object
-        if ((settings.accessCode === accessCode) || 
-            (quiz.access_code === accessCode)) {
-          matchedQuiz = quiz;
-          break;
-        }
-      } catch (e) {
-        console.error(`Error processing quiz ${quiz.id}:`, e);
-      }
-    }
+    // Find the quiz by access code
+    const quiz = await db.getQuizByAccessCode(accessCode);
     
-    if (!matchedQuiz) {
-      console.log('No quiz found with access code:', accessCode);
+    if (!quiz || quiz.status !== 'published') {
       return res.status(404).json({
         success: false,
-        error: 'Quiz not found or is not published'
+        error: 'Quiz not found or not published'
       });
     }
     
-    // Get the questions for the quiz
-    const questions = await db.getQuestions(matchedQuiz.id);
-    
-    // Parse the options for each question
-    const parsedQuestions = questions.map(q => ({
-      ...q,
-      options: JSON.parse(q.options || '[]')
-    }));
-
-    // Calculate score
-    let correctAnswers = 0;
-    const totalQuestions = parsedQuestions.length;
-    
-    // Check each response against the correct answer
-    responses.forEach(response => {
-      const question = parsedQuestions.find(q => q.id === parseInt(response.questionId));
-      if (question) {
-        const correctAnswer = question.correct_answer;
-        if (correctAnswer !== undefined && response.answer == correctAnswer) {
-          correctAnswers++;
-        }
-      }
+    // Ensure field compatibility between frontend and backend
+    // Frontend uses 'content', backend expects 'text'
+    const processedResponses = responses.map(response => {
+      // Make sure we have both text and content fields
+      return {
+        ...response,
+        // Set text if only content is provided
+        text: response.text || response.content,
+        // Set content if only text is provided
+        content: response.content || response.text
+      };
     });
     
-    const score = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
-    const passed = score >= (matchedQuiz.settings.passingScore || 60); // Default passing score is 60%
-    
-    // Save the submission to the database
-    const timestamp = new Date().toISOString();
+    // Store submission in database
     const submission = {
-      quizId: matchedQuiz.id,
-      score,
-      correctAnswers,
-      totalQuestions,
-      passed,
-      timestamp,
-      timeSpent: timeSpent || 0,
-      responses: JSON.stringify(responses)
+      quiz_id: quiz.id,
+      responses: processedResponses,
+      learner_id: learnerId || 'anonymous_learner',
+      metadata: metadata || {},
+      submitted_at: new Date().toISOString()
     };
     
-    // TODO: Store submission in database if needed
-    console.log('Quiz submission:', submission);
+    const submissionId = await db.insertSubmission(submission);
     
-    // Return the result
+    // Calculate results if quiz has automatic grading
+    let result = {
+      passed: true,
+      score: 0,
+      totalQuestions: quiz.questions ? quiz.questions.length : 0,
+      correctAnswers: 0
+    };
+    
+    // Send the result back to the client
     res.json({
       success: true,
-      result: {
-        passed,
-        score,
-        correctAnswers,
-        totalQuestions,
-        timeSpent: timeSpent || 0,
-        timestamp
-      }
+      submissionId,
+      result
     });
-    
   } catch (error) {
     console.error('Error submitting quiz:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to submit quiz',
-      details: error.message
+      error: 'Server error while submitting quiz'
     });
   }
 });

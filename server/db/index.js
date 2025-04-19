@@ -691,6 +691,113 @@ async function getQuizByAccessCode(accessCode) {
   }
 }
 
+/**
+ * Insert a new quiz submission
+ * @param {Object} submission - The submission data
+ * @returns {Promise<string>} - The submission ID
+ */
+async function insertSubmission(submission) {
+  try {
+    console.log(`[DEBUG] insertSubmission: Storing submission for quiz ${submission.quiz_id}`);
+    
+    // Ensure we have valid data
+    if (!submission.quiz_id) {
+      console.error('[ERROR] insertSubmission: Missing quiz_id');
+      throw new Error('Missing quiz_id');
+    }
+    
+    // Create the submission record
+    const { data, error } = await supabase
+      .from('submissions')
+      .insert({
+        quiz_id: submission.quiz_id,
+        learner_id: submission.learner_id || 'anonymous_learner',
+        responses: typeof submission.responses === 'string' 
+          ? submission.responses 
+          : JSON.stringify(submission.responses),
+        metadata: typeof submission.metadata === 'string'
+          ? submission.metadata
+          : JSON.stringify(submission.metadata),
+        submitted_at: submission.submitted_at || new Date().toISOString(),
+        status: submission.status || 'submitted'
+      })
+      .select();
+    
+    if (error) {
+      console.error('[ERROR] insertSubmission:', error);
+      // If the submissions table doesn't exist, create it
+      if (error.code === '42P01') { // PostgreSQL error code for undefined_table
+        await createSubmissionsTable();
+        // Try again after creating the table
+        return insertSubmission(submission);
+      }
+      throw error;
+    }
+    
+    console.log(`[DEBUG] insertSubmission: Successfully stored submission with ID: ${data[0]?.id}`);
+    return data[0]?.id;
+  } catch (error) {
+    console.error('[ERROR] insertSubmission:', error);
+    // If this is a more specific table structure issue, create the table
+    await createSubmissionsTable();
+    throw error;
+  }
+}
+
+/**
+ * Create the submissions table if it doesn't exist
+ * @returns {Promise<boolean>} - True if successful
+ */
+async function createSubmissionsTable() {
+  try {
+    console.log('[DEBUG] Creating submissions table...');
+    
+    // Check if the table already exists
+    const { error: checkError } = await supabase
+      .from('submissions')
+      .select('id')
+      .limit(1);
+    
+    // If we can query the table, it exists
+    if (!checkError) {
+      console.log('[DEBUG] Submissions table already exists');
+      return true;
+    }
+    
+    // Create the table
+    const { error } = await supabase.rpc('create_submissions_table');
+    
+    if (error) {
+      console.error('[ERROR] Failed to create submissions table:', error);
+      
+      // If RPC method doesn't exist, use raw SQL
+      const { error: sqlError } = await supabase.sql`
+        CREATE TABLE IF NOT EXISTS submissions (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          quiz_id UUID REFERENCES quizzes(id),
+          learner_id TEXT,
+          responses JSONB,
+          metadata JSONB,
+          submitted_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+          status TEXT DEFAULT 'submitted',
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+        );
+      `;
+      
+      if (sqlError) {
+        console.error('[ERROR] Failed to create submissions table with SQL:', sqlError);
+        return false;
+      }
+    }
+    
+    console.log('[DEBUG] Successfully created submissions table');
+    return true;
+  } catch (error) {
+    console.error('[ERROR] createSubmissionsTable:', error);
+    return false;
+  }
+}
+
 // Export functions and supabase client for direct access if needed
 module.exports = {
   supabase,
@@ -715,5 +822,7 @@ module.exports = {
   getSubmissions,
   getTable,
   createTable,
-  getQuizByAccessCode
+  getQuizByAccessCode,
+  insertSubmission,
+  createSubmissionsTable
 };

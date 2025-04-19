@@ -41,6 +41,13 @@ export default function TakeQuiz() {
           throw new Error('No access code provided');
         }
         
+        // Generate a random learner ID if one doesn't exist in sessionStorage
+        // This helps track the learner's session without requiring authentication
+        if (!sessionStorage.getItem('learner_id')) {
+          const randomId = 'learner_' + Math.random().toString(36).substring(2, 15);
+          sessionStorage.setItem('learner_id', randomId);
+        }
+        
         // Remove token requirement for public quiz access
         // Use the correct endpoint path that matches our backend implementation
         const response = await fetch(getApiUrl(`/api/quizzes/code/${params.accessCode}`))
@@ -180,82 +187,63 @@ export default function TakeQuiz() {
 
   const submitQuiz = async () => {
     try {
-      console.log("Starting quiz submission process");
-      setLoading(true);
+      setIsLoading(true);
       
-      // Convert responses to the format expected by the API
-      const formattedResponses = Object.keys(responses).map(questionId => {
-        const questionData = quiz.questions.find(q => q.id == questionId);
-        const response = responses[questionId];
-        
-        // Handle matching question type specifically
-        if (questionData && questionData.type === 'matching') {
-          console.log("Formatting matching question response:", response);
-          // Make sure we're sending the matching response in the expected format
-          return {
-            questionId: parseInt(questionId),
-            response: response || [] // Ensure we always send an array, even if empty
-          };
+      // Get anonymous learner ID from session storage
+      const learnerId = sessionStorage.getItem('learner_id') || 'anonymous_learner';
+      
+      // Format submission data
+      const submissionData = {
+        quizId: quiz.id,
+        responses: Object.entries(responses).map(([questionId, answer]) => ({
+          questionId,
+          answer,
+          // Include both text and content fields to ensure compatibility
+          text: typeof answer === 'string' ? answer : JSON.stringify(answer),
+          content: typeof answer === 'string' ? answer : JSON.stringify(answer)
+        })),
+        learnerId: learnerId, // Include anonymous learner ID for tracking
+        metadata: {
+          browser: navigator.userAgent,
+          submittedAt: new Date().toISOString(),
+          timeSpent: timeLeft !== null ? (quiz?.settings?.duration || 0) * 60 - timeLeft : null
         }
-        
-        return {
-          questionId: parseInt(questionId),
-          response: response
-        };
-      });
-
-      console.log("Submitting quiz with responses:", formattedResponses);
-      
-      const token = localStorage.getItem('token');
-      const url = getApiUrl(`/api/quizzes/submit/${params.accessCode}`); 
-      
-      console.log("Submission URL:", url);
-      
-      // Make API call to submit quiz
-      const result = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ 
-          responses: formattedResponses,
-          timeSpent: timeLeft !== null ? (quiz?.settings?.duration || 0) * 60 - timeLeft : 0
-        }),
-      });
-
-      console.log("API response status:", result.status);
-      
-      // Handle non-JSON responses
-      let data;
-      try {
-        data = await result.json();
-        console.log("Quiz submission result:", data);
-      } catch (parseError) {
-        console.error("Error parsing API response:", parseError);
-        data = { success: false, error: "Invalid server response" };
-      }
-
-      // Create a safe result object with fallback values
-      const quizResultData = {
-        passed: data.result?.passed || false,
-        score: data.result?.score || 0,
-        totalQuestions: data.result?.totalQuestions || quiz?.questions?.length || 0,
-        correctAnswers: data.result?.correctAnswers || 0
       };
-
-      console.log("Setting quiz as submitted with result:", quizResultData);
       
-      // Update state in the correct order
+      // Send the submission to the server
+      const response = await fetch(
+        getApiUrl(`/api/quizzes/submit/${params.accessCode}`),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(submissionData)
+        }
+      );
+      
+      // Handle the response
+      const result = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to submit quiz');
+      }
+      
+      // Set quiz as submitted and show results
       setQuizSubmitted(true);
-      setQuizResult(quizResultData);
-      setShowSubmitConfirm(false);
-      setLoading(false);
+      setQuizResult(result);
       setShowResults(true);
-    } catch (err) {
-      console.error("Error in the submission process:", err);
-      setLoading(false);
+      
+      // Clear timer if it's running
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      
+    } catch (error) {
+      console.error('Error submitting quiz:', error);
       toast.error('Failed to submit quiz. Please try again.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -1035,8 +1023,10 @@ export default function TakeQuiz() {
                     </p>
                   </div>
                   
-                  {/* Show a different button based on whether user is authenticated or not */}
-                  {localStorage.getItem('token') ? (
+                  {/* Since learners don't log in, we're checking if we're in the context of a tutor dashboard */}
+                  {window.location.pathname.includes('/dashboard') || 
+                   window.location.pathname.includes('/create-quiz') || 
+                   window.location.pathname.includes('/view') ? (
                     <button
                       type="button"
                       onClick={() => navigate('/dashboard')}
@@ -1120,6 +1110,7 @@ export default function TakeQuiz() {
                   alt={quiz.title} 
                   className="w-full h-full object-cover"
                   onError={(e) => {
+                    console.error('Failed to load quiz image:', quiz.image_url || quiz.imageUrl || quiz.settings.imageUrl);
                     e.target.src = 'https://placehold.co/600x400?text=Quiz+Image';
                   }}
                 />
