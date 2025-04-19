@@ -181,6 +181,7 @@ export default function Dashboard() {
                       key={quiz.id} 
                       quiz={quiz} 
                       onStatusChange={refreshQuizzes}
+                      isListView={false}
                     />
                   ))}
                 </div>
@@ -197,6 +198,7 @@ export default function Dashboard() {
                       <QuizCard 
                         quiz={quiz} 
                         onStatusChange={refreshQuizzes}
+                        isListView={true}
                       />
                     </div>
                   ))}
@@ -268,6 +270,7 @@ export default function Dashboard() {
                       key={quiz.id} 
                       quiz={quiz} 
                       onStatusChange={refreshQuizzes}
+                      isListView={false}
                     />
                   ))}
                 </div>
@@ -284,6 +287,7 @@ export default function Dashboard() {
                       <QuizCard 
                         quiz={quiz} 
                         onStatusChange={refreshQuizzes}
+                        isListView={true}
                       />
                     </div>
                   ))}

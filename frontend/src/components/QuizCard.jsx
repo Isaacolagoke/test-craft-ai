@@ -21,7 +21,7 @@ import {
 import DeleteQuizModal from './DeleteQuizModal';
 import ShareByEmailModal from './ShareByEmailModal';
 
-const QuizCard = ({ quiz, onStatusChange }) => {
+const QuizCard = ({ quiz, onStatusChange, isListView }) => {
   const navigate = useNavigate();
   const [isDeleteModalOpen, setIsDeleteModalOpen] = React.useState(false);
   const [isShareByEmailModalOpen, setIsShareByEmailModalOpen] = React.useState(false);
@@ -185,6 +185,11 @@ const QuizCard = ({ quiz, onStatusChange }) => {
 
   // Fix image URL rendering with our utility function
   const getCardImageUrl = () => {
+    // For list view, don't return any image URL
+    if (isListView) {
+      return null;
+    }
+    
     // Parse settings if it's a string
     let settings = quiz.settings;
     if (typeof settings === 'string' && settings) {
@@ -343,36 +348,77 @@ const QuizCard = ({ quiz, onStatusChange }) => {
 
   return (
     <>
-      <div className="bg-white rounded-lg overflow-hidden border border-gray-200">
-        {/* Card Header - Image and Menu */}
-        <div className="relative">
-          <div className="aspect-[16/9] overflow-hidden rounded-t-xl">
+      <article 
+        className={`group relative ${isListView ? 'flex gap-4 items-center' : 'h-full'}`}
+        aria-label={`Quiz: ${title}`}
+      >
+        {/* Quiz Status Indicator */}
+        <div className="absolute right-0 top-0 z-10 p-2">
+          <span 
+            className={`inline-flex px-2 py-1 text-xs font-medium rounded-full
+              ${status === 'published' ? 'bg-green-100 text-green-800' : 
+                status === 'draft' ? 'bg-amber-100 text-amber-800' : 
+                'bg-slate-100 text-slate-800'}`}
+          >
+            {status === 'published' ? 'Published' : 
+             status === 'draft' ? 'Draft' : 'Archived'}
+          </span>
+        </div>
+
+        {/* Quiz Image or Icon */}
+        {isListView ? (
+          <div className="flex-shrink-0 w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center">
+            <BookOpenIcon className="w-6 h-6 text-slate-600" />
+          </div>
+        ) : (
+          <div 
+            className="relative mb-4 w-full aspect-video rounded-xl overflow-hidden bg-slate-100"
+          >
             <img 
               src={getCardImageUrl()} 
               alt={title} 
               className="w-full h-full object-cover"
               onError={(e) => {
-                logger.error('Failed to load image:', getCardImageUrl());
                 e.target.src = 'https://placehold.co/600x400/e9e9e9/5d5d5d?text=Quiz+Image';
               }}
             />
-            
-            {/* Status Badge - Overlay on image */}
-            <div className="absolute top-3 left-3">
-              {status === 'published' ? (
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-primary border border-gray-200">
-                  <span className="relative flex h-2 w-2 mr-1.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary/60 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-                  </span>
-                  Active
-                </span>
-              ) : (
-                <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">
-                  Draft
-                </span>
+          </div>
+        )}
+
+        {/* Quiz Content */}
+        <div className={`flex flex-col ${isListView ? 'flex-1' : ''}`}>
+          {/* Quiz Title and Menu */}
+          <div className="flex items-start justify-between mb-2">
+            <div className={`${isListView ? 'w-3/4' : 'w-full'}`}>
+              <h3 className="font-semibold text-slate-900 group-hover:text-[#06545E] line-clamp-2">
+                {title}
+              </h3>
+              {!isListView && (
+                <p className="text-sm text-slate-600 line-clamp-2 mt-1">
+                  {description || 'No description provided'}
+                </p>
               )}
             </div>
+            
+            {/* Quick Stats (Only show in list view) */}
+            {isListView && (
+              <div className="flex items-center gap-4 text-xs text-slate-600 ml-auto mr-4">
+                <div className="flex items-center gap-1">
+                  <QuestionMarkCircleIcon className="w-4 h-4" />
+                  <span>{questions.length || 0}</span>
+                </div>
+                
+                <div className="flex items-center gap-1">
+                  <ClockIcon className="w-4 h-4" />
+                  <span>{parsedSettings.duration || 10} min</span>
+                </div>
+                
+                <div className="flex items-center gap-1">
+                  <AcademicCapIcon className="w-4 h-4" />
+                  <span>{parsedSettings.difficulty || 'Medium'}</span>
+                </div>
+              </div>
+            )}
             
             {/* Options Menu */}
             <div className="absolute top-3 right-3">
@@ -493,49 +539,36 @@ const QuizCard = ({ quiz, onStatusChange }) => {
               </Menu>
             </div>
           </div>
-        </div>
-        
-        {/* Card Content */}
-        <div className="p-4">
-          {/* Card Title */}
-          <h3 className="font-semibold text-gray-900 mb-1">
-            {capitalizeFirstLetter(title)}
-          </h3>
-          
-          {/* Card Description - Optional */}
-          {description && (
-            <p className="text-sm text-gray-600 mb-3 line-clamp-2">
-              {capitalizeFirstLetter(description)}
-            </p>
-          )}
           
           {/* Card Stats Grid */}
-          <div className="grid grid-cols-2 gap-3 mb-3">
-            <div className="flex items-center">
-              <BookOpenIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className={`text-sm ${!getSubject() || getSubject() === 'Subject not set' ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
-                {getSubject()}
-              </span>
+          {!isListView && (
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              <div className="flex items-center">
+                <BookOpenIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+                <span className={`text-sm ${!getSubject() || getSubject() === 'Subject not set' ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
+                  {getSubject()}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <QuestionMarkCircleIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+                <span className="text-sm text-gray-800 font-medium">
+                  {questions.length || 0} Questions
+                </span>
+              </div>
+              <div className="flex items-center">
+                <ClockIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+                <span className={`text-sm ${!parsedSettings?.duration ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
+                  {getDuration()}
+                </span>
+              </div>
+              <div className="flex items-center">
+                <AcademicCapIcon className="w-4 h-4 text-gray-500 mr-1.5" />
+                <span className={`text-sm ${!parsedSettings?.difficulty ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
+                  {getDifficulty()}
+                </span>
+              </div>
             </div>
-            <div className="flex items-center">
-              <QuestionMarkCircleIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className="text-sm text-gray-800 font-medium">
-                {questions.length || 0} Questions
-              </span>
-            </div>
-            <div className="flex items-center">
-              <ClockIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className={`text-sm ${!parsedSettings?.duration ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
-                {getDuration()}
-              </span>
-            </div>
-            <div className="flex items-center">
-              <AcademicCapIcon className="w-4 h-4 text-gray-500 mr-1.5" />
-              <span className={`text-sm ${!parsedSettings?.difficulty ? 'text-gray-500' : 'text-gray-800 font-medium'}`}>
-                {getDifficulty()}
-              </span>
-            </div>
-          </div>
+          )}
           
           {/* Sharing Section - Only show for published quizzes */}
           {status === 'published' && (parsedSettings?.accessCode || access_code) && (
@@ -583,7 +616,7 @@ const QuizCard = ({ quiz, onStatusChange }) => {
             </div>
           )}
         </div>
-      </div>
+      </article>
 
       <DeleteQuizModal
         isOpen={isDeleteModalOpen}
