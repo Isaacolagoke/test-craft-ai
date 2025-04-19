@@ -226,7 +226,7 @@ async function getQuestions(quizId) {
  * @param {number} creatorId - Creator ID
  * @param {string} title - Quiz title
  * @param {string} description - Quiz description
- * @param {string} settings - JSON settings string
+ * @param {string|Object} settings - Quiz settings
  * @returns {Promise<Object>} - Returns the created quiz
  */
 async function createQuiz(creatorId, title, description, settings) {
@@ -255,6 +255,16 @@ async function createQuiz(creatorId, title, description, settings) {
       console.log('No settings provided, using empty object');
       settingsObj = {};
     }
+
+    // Ensure key settings fields are present
+    settingsObj = {
+      subject: settingsObj.subject || settingsObj.category || 'General',
+      category: settingsObj.category || settingsObj.subject || 'General',
+      duration: settingsObj.duration || 10,
+      timeUnit: settingsObj.timeUnit || 'minutes',
+      difficulty: settingsObj.difficulty || settingsObj.complexity || 'Medium',
+      ...settingsObj
+    };
 
     console.log('Processed settings object:', settingsObj);
 
@@ -364,53 +374,59 @@ async function updateQuizContent(id, title, description) {
 }
 
 /**
- * Update multiple quiz fields at once
- * @param {number} id - Quiz ID
- * @param {Object} updates - Object with fields to update
+ * Update a quiz
+ * @param {number} id - Quiz ID 
+ * @param {Object} updates - Updates to apply to the quiz
  * @returns {Promise<Object>} - Returns updated quiz
  */
 async function updateQuiz(id, updates) {
   try {
     console.log(`Updating quiz ${id} with:`, JSON.stringify(updates));
     
-    // Clone the updates to avoid modifying the original
-    const updatesCopy = { ...updates };
-    
-    // Handle settings correctly if it's included in the updates
-    if (updatesCopy.settings) {
-      // If settings is a string, parse it to an object
-      if (typeof updatesCopy.settings === 'string') {
+    // If updates contains settings, ensure it's properly formatted
+    if (updates.settings) {
+      let settingsObj;
+      
+      // Parse settings if it's a string
+      if (typeof updates.settings === 'string') {
         try {
-          updatesCopy.settings = JSON.parse(updatesCopy.settings);
+          settingsObj = JSON.parse(updates.settings);
         } catch (e) {
-          console.warn('Error parsing settings string in updateQuiz:', e);
-          // If parsing fails, create an empty object
-          updatesCopy.settings = {};
+          console.error('Error parsing settings string:', e);
+          settingsObj = {};
         }
+      } else {
+        settingsObj = updates.settings;
       }
       
-      // Make sure settings is always an object
-      if (!updatesCopy.settings || typeof updatesCopy.settings !== 'object') {
-        updatesCopy.settings = {};
-      }
+      // Ensure key settings fields are present and properly named
+      settingsObj = {
+        // Ensure basic fields are present with correct naming
+        subject: settingsObj.subject || settingsObj.category || 'General',
+        category: settingsObj.category || settingsObj.subject || 'General',
+        duration: settingsObj.duration || settingsObj.timeLimit || 10,
+        timeUnit: settingsObj.timeUnit || 'minutes',
+        difficulty: settingsObj.difficulty || settingsObj.complexity || 'Medium',
+        ...settingsObj
+      };
+      
+      // Replace the settings in updates
+      updates.settings = settingsObj;
     }
-    
-    // Log the final update object
-    console.log(`Processed updates for quiz ${id}:`, JSON.stringify(updatesCopy));
     
     const { data, error } = await supabase
       .from('quizzes')
-      .update(updatesCopy)
+      .update(updates)
       .eq('id', id)
       .select()
       .single();
     
     if (error) {
-      console.error(`Error in updateQuiz for ${id}:`, error);
+      console.error(`Error updating quiz ${id}:`, error);
       throw error;
     }
     
-    console.log(`Successfully updated quiz ${id}:`, data);
+    console.log(`Quiz ${id} updated successfully`);
     return data;
   } catch (error) {
     console.error(`Error updating quiz ${id}:`, error);
