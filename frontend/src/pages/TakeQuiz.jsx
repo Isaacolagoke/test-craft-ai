@@ -50,16 +50,17 @@ export default function TakeQuiz() {
           sessionStorage.setItem('learner_id', randomId);
         }
         
-        // Remove token requirement for public quiz access
-        // Use the correct endpoint path that matches our backend implementation
-        const response = await fetch(getApiUrl(`/api/quizzes/code/${params.accessCode}`))
-        const data = await response.json()
+        // Use fetch directly without token - ensure no auth check happens
+        const response = await fetch(getApiUrl(`/api/quizzes/code/${params.accessCode}`), {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
         
         if (!response.ok) {
-          throw new Error(data.error || 'Failed to fetch quiz')
-        }
-
-        if (!data.success) {
           throw new Error(data.error || 'Failed to fetch quiz')
         }
 
@@ -67,13 +68,12 @@ export default function TakeQuiz() {
 
         // Ensure access code is available in quiz settings
         if (data.quiz && data.quiz.settings) {
-          data.quiz.settings.accessCode = data.quiz.settings.accessCode || params.accessCode;
-        }
-
-        setQuiz(data.quiz)
-        // Set initial time based on quiz duration
-        if (data.quiz.settings && data.quiz.settings.duration) {
-          setTimeLeft(data.quiz.settings.duration * 60) // Convert minutes to seconds
+          setQuiz(data.quiz)
+          
+          // Set up timer if duration is available
+          if (data.quiz.settings.duration) {
+            setTimeLeft(data.quiz.settings.duration * 60) // Convert minutes to seconds
+          }
         }
       } catch (err) {
         logger.error('Error fetching quiz:', err)
@@ -151,14 +151,11 @@ export default function TakeQuiz() {
         answer
       }))
       
-      const token = localStorage.getItem('token')
-      
       // Use the share endpoint with accessCode instead of the quiz ID endpoint
       const response = await fetch(getApiUrl(`/api/quizzes/submit/${params.accessCode}`), {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ 
           responses: formattedResponses,

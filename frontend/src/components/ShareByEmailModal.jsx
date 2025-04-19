@@ -152,17 +152,17 @@ const ShareByEmailModal = ({ isOpen, onClose, quiz }) => {
           </label>
           <div className="flex">
             <div className="relative flex-grow">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <EnvelopeIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+              </div>
               <input
                 type="email"
                 value={currentEmail}
                 onChange={(e) => setCurrentEmail(e.target.value)}
                 onKeyPress={handleKeyPress}
                 placeholder="email@example.com"
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
+                className="block w-full rounded-md border-gray-300 shadow-sm pl-10 focus:border-teal-500 focus:ring-teal-500 sm:text-sm"
               />
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <EnvelopeIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
-              </div>
             </div>
             <button
               type="button"
