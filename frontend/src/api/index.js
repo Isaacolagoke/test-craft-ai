@@ -52,9 +52,15 @@ api.interceptors.response.use(
                                error.config?.url?.includes('/api/quizzes/view/') ||
                                error.config?.url?.includes('/api/quizzes/share/');
     
-    if ((error.response?.status === 401 || error.response?.status === 403) && !isAuthRequest && !isPublicQuizRequest) {
+    // CRITICAL: Don't redirect if accessing a quiz URL or already on quiz page
+    const isQuizPage = window.location.pathname.includes('/quiz/');
+    
+    if ((error.response?.status === 401 || error.response?.status === 403) && 
+        !isAuthRequest && 
+        !isPublicQuizRequest && 
+        !isQuizPage) {
       // Don't redirect if already on login page to prevent redirect loops
-      if (!window.location.pathname.includes('login') && !window.location.pathname.includes('/quiz/')) {
+      if (!window.location.pathname.includes('login')) {
         // Save current location for redirect after login
         localStorage.setItem('redirectAfterLogin', window.location.pathname);
         toast.error('Session expired. Please login again.');

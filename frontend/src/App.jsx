@@ -13,6 +13,7 @@ import PrivateRoute from './components/PrivateRoute'
 import NotFound from './pages/NotFound'
 import RouterFallback from './RouterFallback'
 import TestQuizAccess from './pages/TestQuizAccess'
+import TestQuizShare from './pages/TestQuizShare'
 
 function App() {
   return (
@@ -36,19 +37,24 @@ function App() {
       {/* This component handles redirects from 404.html */}
       <RouterFallback />
       <Routes>
+        {/* PUBLIC ROUTES - Keep these first to ensure they don't get caught by auth checks */}
+        {/* TakeQuiz does NOT need authentication - learners should access directly */}
+        <Route path="/quiz/:accessCode" element={<TakeQuiz />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        
+        {/* PROTECTED ROUTES - require authentication */}
         <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
         <Route path="/statistics" element={<PrivateRoute><Statistics /></PrivateRoute>} />
         <Route path="/create-quiz" element={<PrivateRoute><CreateQuiz /></PrivateRoute>} />
         <Route path="/quiz/:accessCode/view" element={<PrivateRoute><QuizView /></PrivateRoute>} />
-        {/* TakeQuiz does NOT need authentication - learners should access directly */}
-        <Route path="/quiz/:accessCode" element={<TakeQuiz />} />
         <Route path="/quiz/:accessCode/results" element={<PrivateRoute><QuizResults /></PrivateRoute>} />
         <Route path="/quiz/:id/submissions" element={<PrivateRoute><QuizSubmissions /></PrivateRoute>} />
-        {/* Test route for public quiz access */}
+        
+        {/* Test routes for public quiz access */}
         <Route path="/test-quiz-access" element={<TestQuizAccess />} />
+        <Route path="/test-quiz-share" element={<TestQuizShare />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>

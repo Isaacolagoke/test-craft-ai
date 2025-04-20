@@ -2,6 +2,14 @@ const jwt = require("jsonwebtoken");
 const db = require("../db/index");
 
 const authenticateToken = async (req, res, next) => {
+    // CRITICAL: Always allow access to public quiz endpoints without authentication
+    if (req.path.includes('/api/quizzes/code/') || 
+        req.path.includes('/api/quizzes/view/') || 
+        req.path.includes('/api/quizzes/share/')) {
+        console.log("Public quiz endpoint accessed - bypassing authentication:", req.path);
+        return next();
+    }
+
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
 

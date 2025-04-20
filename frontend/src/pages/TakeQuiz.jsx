@@ -51,6 +51,7 @@ export default function TakeQuiz() {
         }
         
         // Use fetch directly without token - ensure no auth check happens
+        // Important: We bypass the axios interceptors completely to avoid any auth redirects
         const response = await fetch(getApiUrl(`/api/quizzes/code/${params.accessCode}`), {
           method: 'GET',
           headers: {
@@ -68,6 +69,18 @@ export default function TakeQuiz() {
 
         // Ensure access code is available in quiz settings
         if (data.quiz && data.quiz.settings) {
+          // Handle field mappings for potential inconsistencies between text and content fields
+          // This is important based on our previous findings about field name mismatches
+          if (data.quiz.questions) {
+            data.quiz.questions = data.quiz.questions.map(q => ({
+              ...q,
+              content: q.content || q.text || '',
+              text: q.text || q.content || '',
+              // Ensure options are parsed properly
+              options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options
+            }));
+          }
+
           setQuiz(data.quiz)
           
           // Set up timer if duration is available
