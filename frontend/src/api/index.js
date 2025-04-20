@@ -46,11 +46,15 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     // Only redirect to login for auth errors that aren't from the auth endpoints themselves
+    // Also don't redirect for public quiz access endpoints
     const isAuthRequest = error.config?.url?.includes('/auth/');
+    const isPublicQuizRequest = error.config?.url?.includes('/api/quizzes/code/') || 
+                               error.config?.url?.includes('/api/quizzes/view/') ||
+                               error.config?.url?.includes('/api/quizzes/share/');
     
-    if ((error.response?.status === 401 || error.response?.status === 403) && !isAuthRequest) {
+    if ((error.response?.status === 401 || error.response?.status === 403) && !isAuthRequest && !isPublicQuizRequest) {
       // Don't redirect if already on login page to prevent redirect loops
-      if (!window.location.pathname.includes('login')) {
+      if (!window.location.pathname.includes('login') && !window.location.pathname.includes('/quiz/')) {
         // Save current location for redirect after login
         localStorage.setItem('redirectAfterLogin', window.location.pathname);
         toast.error('Session expired. Please login again.');
