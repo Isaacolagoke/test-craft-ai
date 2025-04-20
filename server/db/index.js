@@ -620,9 +620,9 @@ async function createTable(query) {
 }
 
 /**
- * Get quiz by access code
- * @param {string} accessCode - The quiz access code
- * @returns {Promise<Object|null>} - Returns the quiz or null if not found
+ * Get quiz by access code - essential for public quiz access
+ * @param {string} accessCode - The access code to find
+ * @returns {Promise<Object|null>} - Returns the quiz object or null
  */
 async function getQuizByAccessCode(accessCode) {
   try {
@@ -633,8 +633,10 @@ async function getQuizByAccessCode(accessCode) {
       return null;
     }
     
+    // Normalize the access code for consistent matching (uppercase)
+    const normalizedAccessCode = accessCode.toUpperCase();
+    
     // Get all published quizzes with settings
-    console.log('[DEBUG] getQuizByAccessCode: Fetching all published quizzes with settings');
     const { data, error } = await supabase
       .from('quizzes')
       .select('*')
@@ -652,39 +654,30 @@ async function getQuizByAccessCode(accessCode) {
     
     console.log(`[DEBUG] getQuizByAccessCode: Found ${data.length} published quizzes. Checking for access code match...`);
     
-    // Dump all quiz data for debugging
-    data.forEach(quiz => {
-      console.log(`[DEBUG] Quiz ID: ${quiz.id}, Title: ${quiz.title}, Settings Type: ${typeof quiz.settings}`);
-      
-      if (typeof quiz.settings === 'string') {
-        try {
-          const parsed = JSON.parse(quiz.settings);
-          console.log(`[DEBUG] Parsed settings for quiz ${quiz.id}:`, parsed);
-        } catch (e) {
-          console.error(`[ERROR] Could not parse settings for quiz ${quiz.id}:`, e.message);
-        }
-      } else if (quiz.settings) {
-        console.log(`[DEBUG] Settings for quiz ${quiz.id} (already object):`, quiz.settings);
-      } else {
-        console.log(`[DEBUG] Quiz ${quiz.id} has no settings`);
-      }
-    });
-    
-    // Find the quiz with matching access code in settings
+    // Find the quiz with matching access code in settings - case insensitive
     const matchedQuiz = data.find(quiz => {
       let settings;
       try {
+        // Parse settings if they're a string
         if (typeof quiz.settings === 'string') {
           settings = JSON.parse(quiz.settings);
         } else {
           settings = quiz.settings;
         }
         
-        const matches = settings && settings.accessCode === accessCode;
-        if (matches) {
-          console.log(`[DEBUG] Found matching quiz! ID: ${quiz.id}, Title: ${quiz.title}`);
+        // Check for access code match (case insensitive)
+        if (settings && settings.accessCode) {
+          // Normalize stored access code too
+          const storedCode = settings.accessCode.toUpperCase();
+          const matches = storedCode === normalizedAccessCode;
+          
+          // Log if we found a match
+          if (matches) {
+            console.log(`[DEBUG] Found matching quiz! ID: ${quiz.id}, Title: ${quiz.title}`);
+          }
+          return matches;
         }
-        return matches;
+        return false;
       } catch (e) {
         console.error(`[ERROR] Error parsing settings for quiz ${quiz.id}:`, e.message);
         return false;

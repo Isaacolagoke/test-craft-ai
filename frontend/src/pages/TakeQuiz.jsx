@@ -50,54 +50,53 @@ export default function TakeQuiz() {
           sessionStorage.setItem('learner_id', randomId);
         }
         
-        // Use fetch directly without token - ensure no auth check happens
-        // Important: We bypass the axios interceptors completely to avoid any auth redirects
-        const response = await fetch(getApiUrl(`/api/quizzes/code/${params.accessCode}`), {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json'
+        // CRITICAL FIX: Always use direct fetch, never use axios interceptors
+        // This bypasses all authentication checks for public quiz access
+        try {
+          // Fetch directly from the API, not through axios which has auth interceptors
+          const response = await fetch(getApiUrl(`/api/quizzes/code/${params.accessCode}`), {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          if (!response.ok) {
+            // If the API failed, don't redirect or show login, just show a clear error
+            throw new Error(`Quiz not found (${response.status}). Please check the access code.`);
           }
-        });
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to fetch quiz')
-        }
-
-        logger.info('Quiz data received:', data.quiz);
-
-        // Ensure access code is available in quiz settings
-        if (data.quiz && data.quiz.settings) {
-          // Handle field mappings for potential inconsistencies between text and content fields
-          // This is important based on our previous findings about field name mismatches
-          if (data.quiz.questions) {
+          
+          const data = await response.json();
+          
+          // Process quiz data, ensuring field mappings between content/text are handled
+          if (data.quiz && data.quiz.questions) {
             data.quiz.questions = data.quiz.questions.map(q => ({
               ...q,
+              // Ensure both content and text fields exist - fixing the field name mismatch
               content: q.content || q.text || '',
               text: q.text || q.content || '',
-              // Ensure options are parsed properly
+              // Parse options if they're a string
               options: typeof q.options === 'string' ? JSON.parse(q.options) : q.options
             }));
           }
-
-          setQuiz(data.quiz)
           
-          // Set up timer if duration is available
-          if (data.quiz.settings.duration) {
-            setTimeLeft(data.quiz.settings.duration * 60) // Convert minutes to seconds
+          setQuiz(data.quiz);
+          
+          // Set timer if duration is available
+          if (data.quiz?.settings?.duration) {
+            setTimeLeft(data.quiz.settings.duration * 60); // Convert minutes to seconds
           }
+        } catch (err) {
+          logger.error('Error fetching quiz:', err);
+          setError(err.message);
+          toast.error(err.message);
         }
-      } catch (err) {
-        logger.error('Error fetching quiz:', err)
-        setError(err.message)
-        toast.error('Failed to fetch quiz: ' + err.message)
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchQuiz()
+    fetchQuiz();
   }, [params.accessCode])
 
   // Timer effect - only start when quiz has actually started
