@@ -12,6 +12,7 @@ import QuizSubmissions from './pages/QuizSubmissions';
 import PrivateRoute from './components/PrivateRoute'
 import NotFound from './pages/NotFound'
 import RouterFallback from './RouterFallback'
+import TestQuizAccess from './pages/TestQuizAccess'
 
 function App() {
   return (
@@ -46,6 +47,8 @@ function App() {
         <Route path="/quiz/:accessCode" element={<TakeQuiz />} />
         <Route path="/quiz/:accessCode/results" element={<PrivateRoute><QuizResults /></PrivateRoute>} />
         <Route path="/quiz/:id/submissions" element={<PrivateRoute><QuizSubmissions /></PrivateRoute>} />
+        {/* Test route for public quiz access */}
+        <Route path="/test-quiz-access" element={<TestQuizAccess />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </>
