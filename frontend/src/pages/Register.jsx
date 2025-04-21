@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import logoText from '../assets/logo-text.svg'
 import googleIcon from '../assets/google.svg'
+import PasswordStrengthMeter from '../components/PasswordStrengthMeter'
 
 export default function Register() {
   const navigate = useNavigate()
@@ -29,6 +30,30 @@ export default function Register() {
     // Validate password strength
     if (formData.password.length < 8) {
       setError('Password must be at least 8 characters long')
+      return
+    }
+    
+    // Check for uppercase letter
+    if (!/[A-Z]/.test(formData.password)) {
+      setError('Password must contain at least one uppercase letter')
+      return
+    }
+    
+    // Check for lowercase letter
+    if (!/[a-z]/.test(formData.password)) {
+      setError('Password must contain at least one lowercase letter')
+      return
+    }
+    
+    // Check for number
+    if (!/\d/.test(formData.password)) {
+      setError('Password must contain at least one number')
+      return
+    }
+    
+    // Check for special character
+    if (!/[!@#$%^&*(),.?":{}|<>]/.test(formData.password)) {
+      setError('Password must contain at least one special character')
       return
     }
 
@@ -118,6 +143,7 @@ export default function Register() {
                   required
                   disabled={isLoading}
                 />
+                <PasswordStrengthMeter password={formData.password} />
               </div>
               <div>
                 <input
