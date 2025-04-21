@@ -67,15 +67,8 @@ router.post('/register', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, salt);
         
         try {
-            // Insert user into database using createUser function
-            const newUser = await db.createUser(email, name);
-            
-            // Update the user with the hashed password
-            if (newUser) {
-                await db.updateUser(newUser.id, { password: hashedPassword });
-            } else {
-                throw new Error('Failed to create user');
-            }
+            // Insert user into database with the hashed password in one step
+            const newUser = await db.createUser(email, name, hashedPassword);
             
             // Generate token
             const token = jwt.sign(

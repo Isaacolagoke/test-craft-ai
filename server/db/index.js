@@ -1002,23 +1002,37 @@ async function getUserByEmail(email) {
  * Create a new user
  * @param {string} email - User email
  * @param {string} name - User name
+ * @param {string} password - User password (hashed)
  * @returns {Promise<Object>} - Returns the created user
  */
-async function createUser(email, name) {
+async function createUser(email, name, password) {
   try {
+    console.log(`[DEBUG] Creating user with email: ${email}`);
+    
+    if (!email || !name || !password) {
+      console.error('[ERROR] Missing required fields for user creation');
+      throw new Error('Email, name, and password are required');
+    }
+    
     const { data, error } = await supabase
       .from('users')
       .insert({
         email,
-        name
+        name,
+        password
       })
       .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('[ERROR] Supabase error creating user:', error);
+      throw error;
+    }
+    
+    console.log(`[DEBUG] User created successfully with ID: ${data.id}`);
     return data;
   } catch (error) {
-    console.error('Error creating user:', error);
+    console.error('[ERROR] Error creating user:', error);
     throw error;
   }
 }
